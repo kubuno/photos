@@ -1,0 +1,68 @@
+[module]
+id           = "photos"
+display_name = "Photos"
+version      = "0.1.0"
+description  = "Galerie photo — import, organisation en albums, partage, timeline."
+author       = "Kubuno Contributors"
+license      = "AGPL-3.0"
+homepage_url = "https://github.com/kubuno/kubuno"
+runtime      = "rust"
+dependencies = []
+settings_path = "/photos/settings"
+
+[process]
+entrypoint = "kubuno-photos"
+args       = []
+
+[server]
+host = "127.0.0.1"
+port = 3103
+
+[routes]
+patterns = [
+    { method = "*", path = "/*" },
+]
+
+[[sidebar_items]]
+id       = "photos"
+label    = "Photos"
+icon     = "Image"
+path     = "/photos"
+position = 20
+section  = "main"
+
+[[sidebar_items]]
+id       = "photos-albums"
+label    = "Albums"
+icon     = "BookImage"
+path     = "/photos/albums"
+position = 21
+section  = "main"
+
+[[sidebar_items]]
+id       = "photos-starred"
+label    = "Favoris"
+icon     = "Heart"
+path     = "/photos/starred"
+position = 22
+section  = "main"
+
+[[sidebar_items]]
+id       = "photos-trash"
+label    = "Corbeille"
+icon     = "Trash2"
+path     = "/photos/trash"
+position = 98
+section  = "secondary"
+
+[events]
+subscribed = [
+    "UserDeleted",
+    "QuotaUpdated",
+]
+publishes = [
+    "PhotoImported",
+    "FileDeleted",
+    "ShareCreated",
+    "ShareRevoked",
+]
