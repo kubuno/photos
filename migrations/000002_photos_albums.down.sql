@@ -1,0 +1,3 @@
+ALTER TABLE shares DROP CONSTRAINT IF EXISTS fk_shares_album;
+DROP TABLE IF EXISTS album_photos;
+DROP TABLE IF EXISTS albums;
