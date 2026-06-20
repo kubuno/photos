@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@kubuno/sdk'
 import { Image, Save, ChevronLeft, ExternalLink } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Toggle, Button, Tabs } from '@ui'
+import { Toggle, Button, Tabs, RangeSlider } from '@ui'
 
 type Tab = 'gallery' | 'sharing' | 'about'
 
@@ -119,14 +119,14 @@ function GalleryTab() {
           </p>
           <div className="flex items-center gap-3">
             <span className="text-xs text-text-tertiary w-8">1</span>
-            <input
-              type="range"
+            <RangeSlider
               min={50}
               max={100}
               step={5}
               value={currentQuality}
-              onChange={(e) => setJpegQuality(Number(e.target.value))}
+              onChange={setJpegQuality}
               className="flex-1"
+              aria-label={t('photos_jpeg_quality_title')}
             />
             <span className="text-xs text-text-tertiary w-8 text-right">100</span>
             <span className="text-sm font-medium text-text-primary w-12 text-right">
