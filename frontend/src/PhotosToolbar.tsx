@@ -14,8 +14,10 @@ export default function PhotosToolbar() {
   const { pathname } = useLocation()
   const { t }        = useTranslation('photos')
 
+  // overflow-x-auto : les onglets défilent sur mobile au lieu de déborder
+  // (desktop : tout tient, pas de scroll).
   return (
-    <div className="flex items-center h-14 px-4 gap-0.5">
+    <div className="flex items-center h-14 px-4 gap-0.5 overflow-x-auto">
       {TABS.map(({ path, tk, label, icon: Icon }) => {
         const active = pathname === path
         return (
@@ -23,7 +25,7 @@ export default function PhotosToolbar() {
             key={path}
             onClick={() => navigate(path)}
             className={`
-              flex items-center gap-2 px-4 h-8 rounded-full text-sm transition-colors font-medium
+              flex items-center gap-2 px-4 h-8 rounded-full text-sm transition-colors font-medium flex-shrink-0 whitespace-nowrap
               ${active
                 ? 'bg-primary-light text-primary'
                 : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary'}

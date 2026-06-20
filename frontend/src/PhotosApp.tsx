@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { isCoarsePointer } from './openable'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -115,10 +116,13 @@ function PhotoCard({
   const handleClick = (e: React.MouseEvent) => {
     if (selectionMode || e.ctrlKey || e.metaKey) {
       onSelect(photo.id, true)
+      return
     }
+    // Touch UIs have no double-click: a single tap opens the photo.
+    if (isCoarsePointer()) { e.preventDefault(); onOpen(photo) }
   }
   const handleDoubleClick = (e: React.MouseEvent) => {
-    if (selectionMode) return
+    if (selectionMode || isCoarsePointer()) return
     e.preventDefault()
     onOpen(photo)
   }
@@ -173,7 +177,7 @@ function PhotoCard({
 
       {/* Action buttons — visible on hover, hidden when already selected */}
       {!selected && (
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 no-print">
           <button
             onClick={e => { e.stopPropagation(); onStar(photo.id, !photo.is_starred) }}
             className="w-7 h-7 rounded-full bg-white/80 flex items-center justify-center hover:bg-white shadow-sm"
@@ -260,17 +264,17 @@ function PhotosLightbox({
       <div className="fixed inset-0 z-50 bg-black/95 flex flex-col select-none" onClick={onClose}>
         {/* Barre du haut */}
         <div
-          className="flex items-center justify-between px-4 py-3 text-white shrink-0"
+          className="flex items-center justify-between px-4 py-3 text-white shrink-0 no-print"
           onClick={e => e.stopPropagation()}
         >
-          <div className="flex items-center gap-3">
-            <button onClick={onClose} className="hover:bg-white/10 p-2 rounded-full">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <button onClick={onClose} className="hover:bg-white/10 p-2 rounded-full flex-shrink-0">
               <X size={20} />
             </button>
-            <span className="text-sm opacity-60">{idx + 1} / {photos.length}</span>
-            <span className="text-sm font-medium truncate max-w-[40vw]">{photo.original_name}</span>
+            <span className="text-sm opacity-60 flex-shrink-0">{idx + 1} / {photos.length}</span>
+            <span className="text-sm font-medium truncate">{photo.original_name}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {photo.taken_at && (
               <span className="text-sm opacity-50 hidden sm:block">
                 {format(new Date(photo.taken_at), 'dd MMM yyyy', { locale: getDateLocale(i18n.language) })}
@@ -281,7 +285,7 @@ function PhotosLightbox({
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
             >
               <Pencil size={14} />
-              {t('photos_edit')}
+              <span className="hidden sm:inline">{t('photos_edit')}</span>
             </button>
             <a
               href={photosApi.downloadUrl(photo.id)}
