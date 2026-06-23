@@ -8,6 +8,7 @@ import { lazy } from 'react'
 import {
   RouteRegistry,
   SlotRegistry,
+  ModuleSettingsRegistry,
   WidgetRegistry,
   WaffleAppRegistry,
   useSidebarStore,
@@ -29,6 +30,9 @@ export function register() {
   WaffleAppRegistry.register('photos', 'Photos', [
     { id: 'photos', label: 'Photos', Icon: Image, path: '/photos' },
   ])
+
+  // The header gear button opens the per-user Photos settings while in /photos.
+  ModuleSettingsRegistry.register('photos')
 
   WidgetRegistry.register({ id: 'photos-recent', moduleId: 'photos', Component: PhotosRecentWidget, size: 'medium', order: 30 })
 
