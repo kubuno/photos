@@ -1,13 +1,14 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, useAuthStore } from '@kubuno/sdk'
-import { Image, Save, ArrowLeft, ExternalLink, Check } from 'lucide-react'
+import { Image, ArrowLeft, ExternalLink, Check } from 'lucide-react'
 import { Toggle, Button, Radio } from '@ui'
 import { useModulePrefs } from './userPrefs'
 
 // ── Per-user preferences (backend, cross-device via core users.preferences) ─────
+// Instance-wide settings (thumbnails, JPEG quality, trash retention, public sharing)
+// are declared in module.toml `[[settings]]` and edited from the core admin console,
+// not from a tab inside the module.
 
 interface PhotosPrefs {
   density:       string   // 'compact' | 'normal' | 'large'
@@ -15,6 +16,8 @@ interface PhotosPrefs {
   showFilenames: boolean
   slideshowSecs: string   // '3' | '5' | '10'
   autoplayVideo: boolean
+  // Index signature required by useModulePrefs<T extends Record<string, unknown>>.
+  [k: string]: unknown
 }
 
 const DEFAULT_PREFS: PhotosPrefs = {
@@ -143,166 +146,6 @@ function PreferencesTab() {
   )
 }
 
-// ── Admin-only global settings (instance, via /admin/settings) ──────────────────
-
-interface PhotosSettings {
-  'photos.thumbnail_size': number
-  'photos.jpeg_quality': number
-  'photos.trash_auto_delete_days': number
-  'photos.allow_public_sharing': boolean
-  'photos.share_link_max_days': number
-}
-
-const THUMBNAIL_OPTIONS = [
-  { value: 128, label: '128 px' }, { value: 256, label: '256 px' }, { value: 512, label: '512 px' },
-]
-const TRASH_DAYS_OPTIONS = [
-  { value: 7, labelKey: 'photos_days_7' }, { value: 30, labelKey: 'photos_days_30' },
-  { value: 90, labelKey: 'photos_days_90' }, { value: 0, labelKey: 'photos_never' },
-]
-const SHARE_LINK_OPTIONS = [
-  { value: 7, labelKey: 'photos_days_7' }, { value: 30, labelKey: 'photos_days_30' },
-  { value: 90, labelKey: 'photos_days_90' }, { value: 365, labelKey: 'photos_one_year' },
-  { value: 0, labelKey: 'photos_unlimited' },
-]
-
-function useSettings() {
-  return useQuery({
-    queryKey: ['admin-settings'],
-    queryFn: () =>
-      api.get<{ settings: { key: string; value: unknown }[] }>('/admin/settings').then((r) => {
-        const map: Record<string, unknown> = {}
-        r.data.settings.forEach((s) => { map[s.key] = s.value })
-        return map as unknown as PhotosSettings
-      }),
-  })
-}
-
-function GalleryTab() {
-  const { t } = useTranslation('photos')
-  const queryClient = useQueryClient()
-  const { data: settings } = useSettings()
-
-  const [thumbnailSize, setThumbnailSize] = useState<number | null>(null)
-  const [trashDays, setTrashDays] = useState<number | null>(null)
-
-  const currentSize  = thumbnailSize ?? (settings?.['photos.thumbnail_size'] ?? 256)
-  const currentTrash = trashDays     ?? (settings?.['photos.trash_auto_delete_days'] ?? 30)
-  const isDirty = thumbnailSize !== null || trashDays !== null
-
-  const save = useMutation({
-    mutationFn: (updates: Record<string, unknown>) => api.patch('/admin/settings', updates),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-settings'] }); setThumbnailSize(null); setTrashDays(null) },
-  })
-
-  function handleSave() {
-    const updates: Record<string, unknown> = {}
-    if (thumbnailSize !== null) updates['photos.thumbnail_size'] = thumbnailSize
-    if (trashDays !== null) updates['photos.trash_auto_delete_days'] = trashDays
-    if (Object.keys(updates).length > 0) save.mutate(updates)
-  }
-
-  return (
-    <div>
-      <SettingsRow label={t('photos_thumb_size_title')} description={t('photos_thumb_size_desc')}>
-        <div className="flex gap-2">
-          {THUMBNAIL_OPTIONS.map(opt => (
-            <button key={opt.value} onClick={() => setThumbnailSize(opt.value)}
-              className={`px-4 py-1.5 rounded-full text-sm border transition-colors ${
-                currentSize === opt.value ? 'border-primary bg-primary-light text-primary font-medium' : 'border-border hover:bg-surface-1 text-text-secondary'}`}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </SettingsRow>
-
-      <SettingsRow label={t('photos_trash_auto_title')} description={t('photos_trash_auto_desc')}>
-        <div className="flex flex-wrap gap-2">
-          {TRASH_DAYS_OPTIONS.map(opt => (
-            <button key={opt.value} onClick={() => setTrashDays(opt.value)}
-              className={`px-4 py-1.5 rounded-full text-sm border transition-colors ${
-                currentTrash === opt.value ? 'border-primary bg-primary-light text-primary font-medium' : 'border-border hover:bg-surface-1 text-text-secondary'}`}>
-              {t(opt.labelKey)}
-            </button>
-          ))}
-        </div>
-      </SettingsRow>
-
-      <div className="pt-5 flex justify-end">
-        <Button onClick={handleSave} disabled={!isDirty || save.isPending} icon={<Save size={15} />}>
-          {save.isPending ? t('photos_saving') : t('photos_save')}
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-function SharingTab() {
-  const { t } = useTranslation('photos')
-  const queryClient = useQueryClient()
-  const { data: settings } = useSettings()
-
-  const [allowPublic, setAllowPublic] = useState<boolean | null>(null)
-  const [maxDays, setMaxDays] = useState<number | null>(null)
-  const [quality, setQuality] = useState<number | null>(null)
-
-  const currentAllowPublic = allowPublic ?? (settings?.['photos.allow_public_sharing'] ?? true)
-  const currentMaxDays     = maxDays     ?? (settings?.['photos.share_link_max_days'] ?? 30)
-  const currentQuality     = quality     ?? (settings?.['photos.jpeg_quality'] ?? 85)
-  const isDirty = allowPublic !== null || maxDays !== null || quality !== null
-
-  const save = useMutation({
-    mutationFn: (updates: Record<string, unknown>) => api.patch('/admin/settings', updates),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-settings'] }); setAllowPublic(null); setMaxDays(null); setQuality(null) },
-  })
-
-  function handleSave() {
-    const updates: Record<string, unknown> = {}
-    if (allowPublic !== null) updates['photos.allow_public_sharing'] = allowPublic
-    if (maxDays !== null) updates['photos.share_link_max_days'] = maxDays
-    if (quality !== null) updates['photos.jpeg_quality'] = quality
-    if (Object.keys(updates).length > 0) save.mutate(updates)
-  }
-
-  return (
-    <div>
-      <SettingsRow label={t('photos_public_sharing_title')} description={t('photos_public_sharing_desc')}>
-        <Toggle checked={currentAllowPublic} onChange={() => setAllowPublic(!currentAllowPublic)} />
-      </SettingsRow>
-
-      <SettingsRow label={t('photos_share_max_title')} description={t('photos_share_max_desc')}>
-        <div className="flex flex-wrap gap-2">
-          {SHARE_LINK_OPTIONS.map(opt => (
-            <button key={opt.value} onClick={() => setMaxDays(opt.value)} disabled={!currentAllowPublic}
-              className={`px-4 py-1.5 rounded-full text-sm border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                currentMaxDays === opt.value ? 'border-primary bg-primary-light text-primary font-medium' : 'border-border hover:bg-surface-1 text-text-secondary'}`}>
-              {t(opt.labelKey)}
-            </button>
-          ))}
-        </div>
-      </SettingsRow>
-
-      <SettingsRow label={t('photos_jpeg_quality_title')} description={t('photos_jpeg_quality_desc')}>
-        <div className="flex flex-wrap gap-2">
-          {[60, 75, 85, 95].map(q => (
-            <button key={q} onClick={() => setQuality(q)}
-              className={`px-4 py-1.5 rounded-full text-sm border transition-colors ${
-                currentQuality === q ? 'border-primary bg-primary-light text-primary font-medium' : 'border-border hover:bg-surface-1 text-text-secondary'}`}>
-              {q}%
-            </button>
-          ))}
-        </div>
-      </SettingsRow>
-
-      <div className="pt-5 flex justify-end">
-        <Button onClick={handleSave} disabled={!isDirty || save.isPending} icon={<Save size={15} />}>
-          {save.isPending ? t('photos_saving') : t('photos_save')}
-        </Button>
-      </div>
-    </div>
-  )
-}
-
 function AboutTab() {
   const { t } = useTranslation('photos')
   return (
@@ -329,21 +172,16 @@ function AboutTab() {
 
 // ── Main page (mail-style breadcrumb + tab bar) ─────────────────────────────────
 
-type Tab = 'preferences' | 'gallery' | 'sharing' | 'about'
+type Tab = 'preferences' | 'about'
 
 export default function PhotosSettingsPage() {
   const { t } = useTranslation('photos')
-  const isAdmin = useAuthStore(s => s.user?.role === 'admin')
   const [tab, setTab] = useState<Tab>('preferences')
 
-  // Admin-only tabs (instance-wide settings) are hidden for non-admins.
-  const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
+  const tabs: { id: Tab; label: string }[] = [
     { id: 'preferences', label: t('photos_tab_preferences', { defaultValue: 'Préférences' }) },
-    { id: 'gallery',     label: t('photos_tab_gallery', { defaultValue: 'Galerie' }), adminOnly: true },
-    { id: 'sharing',     label: t('photos_tab_sharing', { defaultValue: 'Partage' }), adminOnly: true },
     { id: 'about',       label: t('photos_tab_about', { defaultValue: 'À propos' }) },
   ]
-  const visibleTabs = tabs.filter(tb => !tb.adminOnly || isAdmin)
 
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
@@ -362,7 +200,7 @@ export default function PhotosSettingsPage() {
 
       {/* Tab bar (Gmail-style) */}
       <div className="flex items-end border-b border-[#e8eaed] px-4 flex-shrink-0 overflow-x-auto" style={{ background: '#fff' }}>
-        {visibleTabs.map(tb => (
+        {tabs.map(tb => (
           <button key={tb.id} onClick={() => setTab(tb.id)}
             className={`px-4 py-3 text-sm border-b-2 -mb-px transition-colors whitespace-nowrap ${
               tab === tb.id ? 'border-[#1a73e8] text-[#1a73e8] font-medium' : 'border-transparent text-[#5f6368] hover:text-[#202124] hover:bg-[#f1f3f4]'}`}>
@@ -375,8 +213,6 @@ export default function PhotosSettingsPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-8 py-6">
           {tab === 'preferences' && <PreferencesTab />}
-          {tab === 'gallery'  && isAdmin && <GalleryTab />}
-          {tab === 'sharing'  && isAdmin && <SharingTab />}
           {tab === 'about'    && <AboutTab />}
         </div>
       </div>
