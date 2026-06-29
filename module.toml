@@ -1,7 +1,7 @@
 [module]
 id           = "photos"
 display_name = "Photos"
-version      = "0.1.0"
+version      = "0.1.2"
 description  = "Galerie photo — import, organisation en albums, partage, timeline."
 author       = "Kubuno Contributors"
 license      = "AGPL-3.0"
@@ -36,6 +36,7 @@ id       = "photos-albums"
 label    = "Albums"
 icon     = "BookImage"
 path     = "/photos/albums"
+launchable = false
 position = 21
 section  = "main"
 
@@ -44,6 +45,7 @@ id       = "photos-starred"
 label    = "Favoris"
 icon     = "Heart"
 path     = "/photos/starred"
+launchable = false
 position = 22
 section  = "main"
 
@@ -52,8 +54,81 @@ id       = "photos-trash"
 label    = "Corbeille"
 icon     = "Trash2"
 path     = "/photos/trash"
+launchable = false
 position = 98
 section  = "secondary"
+
+# ── Settings manifest ───────────────────────────────────────────────────────────
+# Declarative source of truth for the module's parameters. The core seeds the
+# instance-level rows (scope global|overridable) into core.settings and renders
+# them in the admin console. These are operational instance limits, hence `global`.
+#   scope = "global"      → admin only, instance-wide
+#   scope = "user"        → per-user only
+#   scope = "overridable" → admin default, each user may override it
+
+[[settings]]
+key     = "thumbnail_size"
+scope   = "global"
+type    = "enum"
+default = 256
+label   = "Taille des miniatures"
+description = "Côté en pixels des vignettes générées à l'import."
+values  = [
+    { value = 128, label = "128 px" },
+    { value = 256, label = "256 px" },
+    { value = 512, label = "512 px" },
+]
+
+[[settings]]
+key     = "jpeg_quality"
+scope   = "global"
+type    = "enum"
+default = 85
+label   = "Qualité JPEG des miniatures"
+description = "Compromis qualité/poids des miniatures (0–100)."
+values  = [
+    { value = 60, label = "60 %" },
+    { value = 75, label = "75 %" },
+    { value = 85, label = "85 %" },
+    { value = 95, label = "95 %" },
+]
+
+[[settings]]
+key     = "trash_auto_delete_days"
+scope   = "global"
+type    = "enum"
+default = 30
+label   = "Auto-suppression de la corbeille"
+description = "Délai avant suppression définitive des éléments en corbeille."
+values  = [
+    { value = 7,  label = "7 jours" },
+    { value = 30, label = "30 jours" },
+    { value = 90, label = "90 jours" },
+    { value = 0,  label = "Jamais" },
+]
+
+[[settings]]
+key     = "allow_public_sharing"
+scope   = "global"
+type    = "bool"
+default = true
+label   = "Partage public activé"
+description = "Autorise la création de liens de partage publics pour les photos et albums."
+
+[[settings]]
+key     = "share_link_max_days"
+scope   = "global"
+type    = "enum"
+default = 30
+label   = "Durée maximale des liens de partage"
+description = "Durée de validité maximale d'un lien de partage public."
+values  = [
+    { value = 7,   label = "7 jours" },
+    { value = 30,  label = "30 jours" },
+    { value = 90,  label = "90 jours" },
+    { value = 365, label = "1 an" },
+    { value = 0,   label = "Illimité" },
+]
 
 [events]
 subscribed = [
