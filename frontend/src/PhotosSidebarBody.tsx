@@ -1,4 +1,4 @@
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Image, BookImage, Heart, Trash2, Clock,
@@ -20,7 +20,6 @@ const NAV_ITEMS = [
 ]
 
 export default function PhotosSidebarBody({ collapsed = false }: { collapsed?: boolean }) {
-  const navigate     = useNavigate()
   const { pathname } = useLocation()
   const { t }        = useTranslation('photos')
 
@@ -32,7 +31,8 @@ export default function PhotosSidebarBody({ collapsed = false }: { collapsed?: b
           label={t(tk, { defaultValue: label })}
           icon={icon}
           active={pathname === path}
-          onClick={() => navigate(path)}
+          // `to` makes each entry a real <a href> link, never a <button>.
+          to={path}
         />
       ))}
     </nav>
