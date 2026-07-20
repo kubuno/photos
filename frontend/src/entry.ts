@@ -4,7 +4,7 @@
  * runtime par l'import map du host. Le host importe ce fichier puis appelle
  * `register()` ; `sdkVersion` permet de rejeter une incompatibilité de contrat.
  */
-import { lazy } from 'react'
+import { createElement, lazy } from 'react'
 import {
   RouteRegistry,
   SlotRegistry,
@@ -16,6 +16,8 @@ import {
   SDK_VERSION,
 } from '@kubuno/sdk'
 import { Image } from 'lucide-react'
+import { ImageSourceRegistry } from './imageSourceSdk'
+import PhotosImageSource from './PhotosImageSource'
 import './index.css'
 import './i18n'
 import PhotosImageViewer from './PhotosImageViewer'
@@ -33,6 +35,14 @@ export function register() {
 
   // The header gear button opens the per-user Photos settings while in /photos.
   ModuleSettingsRegistry.register('photos')
+
+  // Contribute the "Photos" tab to the core image picker (available app-wide).
+  ImageSourceRegistry?.add({
+    id: 'photos', label: 'Photos', order: 10, group: 'library',
+    searchable: true, searchPlaceholder: 'Rechercher dans vos photos…',
+    icon: createElement(Image, { size: 18 }),
+    Component: PhotosImageSource,
+  })
 
   WidgetRegistry.register({ id: 'photos-recent', moduleId: 'photos', Component: PhotosRecentWidget, size: 'medium', order: 30 })
 
