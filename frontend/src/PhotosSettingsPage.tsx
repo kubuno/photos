@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Image, ArrowLeft, ExternalLink, Check } from 'lucide-react'
-import { Toggle, Button, Radio } from '@ui'
+import { Toggle, Button, Radio, useSaveShortcut} from '@ui'
 import { useModulePrefs } from './userPrefs'
 
 // ── Per-user preferences (backend, cross-device via core users.preferences) ─────
@@ -10,7 +10,9 @@ import { useModulePrefs } from './userPrefs'
 // are declared in module.toml `[[settings]]` and edited from the core admin console,
 // not from a tab inside the module.
 
-interface PhotosPrefs {
+// `type`, not `interface`: only a type alias gets the implicit index signature
+// that `useModulePrefs<T extends Record<string, unknown>>` requires.
+type PhotosPrefs = {
   density:       string   // 'compact' | 'normal' | 'large'
   sort:          string   // 'date_desc' | 'date_asc' | 'name'
   showFilenames: boolean
@@ -64,6 +66,9 @@ function PreferencesTab() {
 
   const set = <K extends keyof PhotosPrefs>(key: K, value: PhotosPrefs[K]) =>
     setPrefs(p => ({ ...p, [key]: value }))
+
+  // Ctrl+S saves immediately (disabled while a save is in flight).
+  useSaveShortcut(() => { void save() }, !busy)
 
   const save = async () => {
     setBusy(true)

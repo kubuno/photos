@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { photosApi, type Photo } from './api'
-import type { ImageSourceProps } from './imageSourceSdk'
+import type { ImageSourceProps } from '@kubuno/sdk'
 
 /**
  * The "Photos" tab of the core image picker. Registered by this module, so the

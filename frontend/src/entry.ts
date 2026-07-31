@@ -14,9 +14,9 @@ import {
   useSidebarStore,
   useToolbarStore,
   SDK_VERSION,
+  ImageSourceRegistry,
 } from '@kubuno/sdk'
 import { Image } from 'lucide-react'
-import { ImageSourceRegistry } from './imageSourceSdk'
 import PhotosImageSource from './PhotosImageSource'
 import './index.css'
 import './i18n'
@@ -37,7 +37,7 @@ export function register() {
   ModuleSettingsRegistry.register('photos')
 
   // Contribute the "Photos" tab to the core image picker (available app-wide).
-  ImageSourceRegistry?.add({
+  ImageSourceRegistry.add({
     id: 'photos', label: 'Photos', order: 10, group: 'library',
     searchable: true, searchPlaceholder: 'Rechercher dans vos photos…',
     icon: createElement(Image, { size: 18 }),
