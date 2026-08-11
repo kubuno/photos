@@ -75,16 +75,38 @@ pub async fn transform(
         let ps      = state.settings.photos.preview_size;
         let nb      = new_bytes;
         tokio::spawn(async move {
-            let _ = sqlx::query(
-                "UPDATE photos.photos SET size_bytes = $1, updated_at = NOW() WHERE id = $2",
+            // Derivatives are rewritten in place, so their weight changes with the
+            // original's — recorded in the same statement to keep `derived_bytes`
+            // and the files it describes from drifting apart.
+            let thumb_bytes = generate_resized_pub(
+                storage.as_ref(), &nb, &thumbnail_path(owner, pid), ts,
+            ).await;
+            let prev_bytes = generate_resized_pub(
+                storage.as_ref(), &nb, &preview_path(owner, pid), ps,
+            ).await;
+
+            if let Err(e) = sqlx::query(
+                "UPDATE photos.photos
+                    SET size_bytes    = $1,
+                        derived_bytes = $2,
+                        has_thumbnail = $3,
+                        has_preview   = $4,
+                        updated_at    = NOW()
+                  WHERE id = $5",
             )
             .bind(new_size)
+            .bind((thumb_bytes + prev_bytes) as i64)
+            .bind(thumb_bytes > 0)
+            .bind(prev_bytes > 0)
             .bind(pid)
             .execute(&db)
-            .await;
+            .await
+            {
+                tracing::error!(error = %e, photo = %pid, "Mise à jour des tailles après transformation échouée");
+                return;
+            }
 
-            generate_resized_pub(storage.as_ref(), &nb, &thumbnail_path(owner, pid), ts).await;
-            generate_resized_pub(storage.as_ref(), &nb, &preview_path(owner, pid), ps).await;
+            crate::services::usage::mark_dirty(owner);
         });
     }
 

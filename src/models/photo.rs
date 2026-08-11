@@ -21,6 +21,9 @@ pub struct Photo {
     pub gps_lon:       Option<f64>,
     pub has_thumbnail: bool,
     pub has_preview:   bool,
+    /// Combined weight of the thumbnail and preview JPEGs written for this photo.
+    /// Recorded when they are generated; declared to the core as `thumbnails`.
+    pub derived_bytes: i64,
     pub is_starred:    bool,
     pub is_trashed:    bool,
     pub trashed_at:    Option<DateTime<Utc>>,

@@ -24,7 +24,7 @@ export default function PhotosSidebarBody({ collapsed = false }: { collapsed?: b
   const { t }        = useTranslation('photos')
 
   return (
-    <nav className={`flex-1 overflow-y-auto py-1 space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
+    <nav className={`flex-1 overflow-y-auto py-1 space-y-0.5 px-2`}>
       {NAV_ITEMS.map(({ tk, label, icon, path }) => (
         <SidebarNavItem collapsed={collapsed}
           key={path}

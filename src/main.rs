@@ -193,6 +193,16 @@ async fn main() -> Result<()> {
         });
     }
 
+    // Storage usage reporter: declares to the core what photos holds (live
+    // originals, trashed originals, derived images), incrementally on every write
+    // and completely every few hours. See `services::usage`.
+    {
+        let state_usage = state.clone();
+        tokio::spawn(async move {
+            kubuno_photos::services::usage::run_reporter(state_usage).await;
+        });
+    }
+
     let addr = format!("{}:{}", settings.server.host, settings.server.port);
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
