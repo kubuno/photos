@@ -142,16 +142,22 @@ pub async fn upload_photo(
         .context("Stockage de la photo")?;
 
     // Générer thumbnail et preview
-    let (has_thumbnail, has_preview) = generate_derivatives(
+    let (thumbnail_bytes, preview_bytes) = generate_derivatives(
         storage, owner_id, id, &data, thumbnail_size, preview_size,
     ).await;
+    // A non-zero weight is exactly the proof the derivative was written, so the
+    // booleans are derived from it rather than tracked separately — the two can
+    // never disagree.
+    let has_thumbnail = thumbnail_bytes > 0;
+    let has_preview   = preview_bytes > 0;
+    let derived_bytes = (thumbnail_bytes + preview_bytes) as i64;
 
     let photo = sqlx::query_as::<_, Photo>(
         r#"INSERT INTO photos.photos
            (id, owner_id, filename, original_name, mime_type, size_bytes, width, height,
             storage_path, content_hash, taken_at, camera_make, camera_model,
-            gps_lat, gps_lon, has_thumbnail, has_preview)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+            gps_lat, gps_lon, has_thumbnail, has_preview, derived_bytes)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
            RETURNING *"#,
     )
     .bind(id)
@@ -171,9 +177,14 @@ pub async fn upload_photo(
     .bind(gps_lon)
     .bind(has_thumbnail)
     .bind(has_preview)
+    .bind(derived_bytes)
     .fetch_one(db)
     .await
     .context("Insertion photo en DB")?;
+
+    // An upload moves this account's declared total; the reporter coalesces the
+    // mark and declares a few seconds later, so the upload never waits on the core.
+    crate::services::usage::mark_dirty(owner_id);
 
     Ok(photo)
 }
@@ -219,6 +230,13 @@ pub async fn trash_photo(db: &PgPool, id: Uuid, owner_id: Uuid) -> anyhow::Resul
     .context("trash_photo")?
     .rows_affected();
 
+    // Trashing does not free a byte, it moves it from `content` to `trash` — two
+    // separate lines the core bills together. Both change, so the account is
+    // re-declared.
+    if rows > 0 {
+        crate::services::usage::mark_dirty(owner_id);
+    }
+
     Ok(rows > 0)
 }
 
@@ -234,6 +252,10 @@ pub async fn restore_photo(db: &PgPool, id: Uuid, owner_id: Uuid) -> anyhow::Res
     .await
     .context("restore_photo")?
     .rows_affected();
+
+    if rows > 0 {
+        crate::services::usage::mark_dirty(owner_id);
+    }
 
     Ok(rows > 0)
 }
@@ -260,6 +282,9 @@ pub async fn delete_photo(
         let prev_path  = preview_path(owner_id, id);
         let _ = storage.delete(&thumb_path).await;
         let _ = storage.delete(&prev_path).await;
+        // A hard delete is the one operation that actually lowers the figure —
+        // declaring it promptly is what stops a freed quota from looking used.
+        crate::services::usage::mark_dirty(owner_id);
         Ok(true)
     } else {
         Ok(false)
@@ -361,6 +386,14 @@ fn rational_to_deg(deg: &exif::Rational, min: &exif::Rational, sec: &exif::Ratio
     deg.to_f64() + min.to_f64() / 60.0 + sec.to_f64() / 3600.0
 }
 
+/// Generates both derivatives and reports what each one weighs.
+///
+/// The sizes are returned rather than discarded because photos declares a
+/// `thumbnails` category to the core: derivatives occupy real space in the
+/// storage backend, and the only moment their weight is known for free is the
+/// moment they are written. Measuring them later means one `size()` round-trip
+/// per file against the backend — see `usage::backfill_derived_bytes`, which
+/// exists solely to repair rows written before this was recorded.
 async fn generate_derivatives(
     storage: &dyn StorageBackend,
     owner_id: Uuid,
@@ -368,39 +401,44 @@ async fn generate_derivatives(
     data: &Bytes,
     thumbnail_size: u32,
     preview_size: u32,
-) -> (bool, bool) {
-    let has_thumbnail = generate_resized(
+) -> (u64, u64) {
+    let thumbnail_bytes = generate_resized(
         storage,
         data,
         &thumbnail_path(owner_id, photo_id),
         thumbnail_size,
     ).await;
 
-    let has_preview = generate_resized(
+    let preview_bytes = generate_resized(
         storage,
         data,
         &preview_path(owner_id, photo_id),
         preview_size,
     ).await;
 
-    (has_thumbnail, has_preview)
+    (thumbnail_bytes, preview_bytes)
 }
 
+/// Writes one derivative. Returns the bytes stored, or 0 when nothing was written.
 pub async fn generate_resized_pub(
     storage: &dyn StorageBackend,
     data: &Bytes,
     path: &str,
     size: u32,
-) -> bool {
+) -> u64 {
     generate_resized(storage, data, path, size).await
 }
 
+/// Returns the number of bytes actually stored, `0` meaning "no derivative".
+///
+/// A best-effort path: a photo whose derivative cannot be produced is still a
+/// valid photo, so failures are reported as zero rather than propagated.
 async fn generate_resized(
     storage: &dyn StorageBackend,
     data: &Bytes,
     path: &str,
     size: u32,
-) -> bool {
+) -> u64 {
     let data = data.clone();
     let path = path.to_string();
     let result = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<u8>> {
@@ -416,8 +454,13 @@ async fn generate_resized(
 
     match result {
         Ok(Ok(bytes)) => {
-            storage.put(&path, bytes.into()).await.is_ok()
+            let len = bytes.len() as u64;
+            if storage.put(&path, bytes.into()).await.is_ok() {
+                len
+            } else {
+                0
+            }
         }
-        _ => false,
+        _ => 0,
     }
 }
