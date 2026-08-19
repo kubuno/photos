@@ -33,9 +33,14 @@ pub async fn upload(
     Extension(user): Extension<PhotosUser>,
     mut multipart: Multipart,
 ) -> Result<Json<Value>> {
-    let max          = state.settings.photos.max_upload_bytes;
-    let thumb_size   = state.settings.photos.thumbnail_size;
-    let preview_size = state.settings.photos.preview_size;
+    let inst         = state.instance();
+    // The instance ceiling is the one an administrator sees and edits; the
+    // deployment's own `max_upload_bytes` stays a hard floor under it, so a
+    // config file can always be more restrictive than the console.
+    let max          = inst.max_upload_bytes().min(state.settings.photos.max_upload_bytes);
+    let thumb_size   = inst.thumbnail_size;
+    let preview_size = inst.preview_size;
+    let quality      = inst.jpeg_quality;
     let mut filename: Option<String> = None;
     let mut data: Option<bytes::Bytes> = None;
 
@@ -65,6 +70,8 @@ pub async fn upload(
         max,
         thumb_size,
         preview_size,
+        quality,
+        inst.accept_undecodable_formats,
     )
     .await
     .map_err(|e| {

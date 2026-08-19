@@ -71,18 +71,20 @@ pub async fn transform(
         let storage = state.storage.clone();
         let owner   = user.id;
         let pid     = photo_id;
-        let ts      = state.settings.photos.thumbnail_size;
-        let ps      = state.settings.photos.preview_size;
+        let inst    = state.instance();
+        let ts      = inst.thumbnail_size;
+        let ps      = inst.preview_size;
+        let quality = inst.jpeg_quality;
         let nb      = new_bytes;
         tokio::spawn(async move {
             // Derivatives are rewritten in place, so their weight changes with the
             // original's — recorded in the same statement to keep `derived_bytes`
             // and the files it describes from drifting apart.
             let thumb_bytes = generate_resized_pub(
-                storage.as_ref(), &nb, &thumbnail_path(owner, pid), ts,
+                storage.as_ref(), &nb, &thumbnail_path(owner, pid), ts, quality,
             ).await;
             let prev_bytes = generate_resized_pub(
-                storage.as_ref(), &nb, &preview_path(owner, pid), ps,
+                storage.as_ref(), &nb, &preview_path(owner, pid), ps, quality,
             ).await;
 
             if let Err(e) = sqlx::query(

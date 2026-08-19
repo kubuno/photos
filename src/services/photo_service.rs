@@ -110,6 +110,8 @@ pub async fn upload_photo(
     max_bytes: u64,
     thumbnail_size: u32,
     preview_size: u32,
+    quality: u8,
+    accept_undecodable: bool,
 ) -> anyhow::Result<Photo> {
     if data.len() as u64 > max_bytes {
         anyhow::bail!("FILE_TOO_LARGE");
@@ -120,7 +122,7 @@ pub async fn upload_photo(
         .to_string();
 
     // Seuls les formats image sont acceptés
-    if !is_image_mime(&mime) {
+    if !is_image_mime(&mime, accept_undecodable) {
         anyhow::bail!("UNSUPPORTED_FORMAT");
     }
 
@@ -143,7 +145,7 @@ pub async fn upload_photo(
 
     // Générer thumbnail et preview
     let (thumbnail_bytes, preview_bytes) = generate_derivatives(
-        storage, owner_id, id, &data, thumbnail_size, preview_size,
+        storage, owner_id, id, &data, thumbnail_size, preview_size, quality,
     ).await;
     // A non-zero weight is exactly the proof the derivative was written, so the
     // booleans are derived from it rather than tracked separately — the two can
@@ -301,12 +303,22 @@ pub fn preview_path(owner_id: Uuid, photo_id: Uuid) -> String {
     format!("photos/{owner_id}/previews/{photo_id}.jpg")
 }
 
-fn is_image_mime(mime: &str) -> bool {
+/// Formats this build can actually decode — the only ones that get dimensions,
+/// a thumbnail and a preview. Kept in step with the `image` crate features
+/// declared in `Cargo.toml`.
+fn is_decodable_image_mime(mime: &str) -> bool {
     matches!(
         mime,
-        "image/jpeg" | "image/png" | "image/webp" | "image/gif"
-        | "image/tiff" | "image/heic" | "image/heif" | "image/avif"
+        "image/jpeg" | "image/png" | "image/webp" | "image/gif" | "image/tiff"
     )
+}
+
+/// Formats accepted at import. The undecodable ones (HEIC/HEIF/AVIF) are stored
+/// verbatim but stay without dimensions and without derivatives, which is why an
+/// instance may refuse them outright — see `accepted_formats` in `module.toml`.
+fn is_image_mime(mime: &str, accept_undecodable: bool) -> bool {
+    is_decodable_image_mime(mime)
+        || (accept_undecodable && matches!(mime, "image/heic" | "image/heif" | "image/avif"))
 }
 
 fn extract_metadata(
@@ -401,12 +413,14 @@ async fn generate_derivatives(
     data: &Bytes,
     thumbnail_size: u32,
     preview_size: u32,
+    quality: u8,
 ) -> (u64, u64) {
     let thumbnail_bytes = generate_resized(
         storage,
         data,
         &thumbnail_path(owner_id, photo_id),
         thumbnail_size,
+        quality,
     ).await;
 
     let preview_bytes = generate_resized(
@@ -414,6 +428,7 @@ async fn generate_derivatives(
         data,
         &preview_path(owner_id, photo_id),
         preview_size,
+        quality,
     ).await;
 
     (thumbnail_bytes, preview_bytes)
@@ -425,8 +440,9 @@ pub async fn generate_resized_pub(
     data: &Bytes,
     path: &str,
     size: u32,
+    quality: u8,
 ) -> u64 {
-    generate_resized(storage, data, path, size).await
+    generate_resized(storage, data, path, size, quality).await
 }
 
 /// Returns the number of bytes actually stored, `0` meaning "no derivative".
@@ -438,6 +454,7 @@ async fn generate_resized(
     data: &Bytes,
     path: &str,
     size: u32,
+    quality: u8,
 ) -> u64 {
     let data = data.clone();
     let path = path.to_string();
@@ -445,10 +462,12 @@ async fn generate_resized(
         let img = image::load_from_memory(&data)?;
         let resized = img.thumbnail(size, size);
         let mut buf = Vec::new();
-        resized.write_to(
-            &mut std::io::Cursor::new(&mut buf),
-            image::ImageFormat::Jpeg,
-        )?;
+        // Encode at the instance JPEG quality rather than the crate default (75).
+        let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(
+            std::io::Cursor::new(&mut buf),
+            quality,
+        );
+        encoder.encode_image(&resized)?;
         Ok(buf)
     }).await;
 
