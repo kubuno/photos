@@ -66,9 +66,73 @@ section  = "secondary"
 #   scope = "user"        → per-user only
 #   scope = "overridable" → admin default, each user may override it
 
+# ── Admin panel pages ─────────────────────────────────────────────────────────
+# Each becomes an entry of the admin menu (Modules → Photos), at its own address
+# (/admin/modules/photos/<id>).
+
+[[setting_groups]]
+id          = "import"
+label       = "Import"
+icon        = "Upload"
+position    = 0
+description  = "Le poids maximal d'une photo importée et les formats de fichier acceptés."
+
+[[setting_groups]]
+id          = "thumbnails"
+label       = "Vignettes et qualité"
+icon        = "Image"
+position    = 1
+description  = "La taille et la qualité JPEG des vignettes générées à l'import (les vignettes existantes ne sont pas régénérées)."
+
+[[setting_groups]]
+id          = "sharing"
+label       = "Partage"
+icon        = "Share2"
+position    = 2
+description  = "L'activation des liens de partage public et leur durée de vie maximale."
+
+[[setting_groups]]
+id          = "trash"
+label       = "Corbeille"
+icon        = "Trash2"
+position    = 3
+description  = "La suppression définitive automatique des photos restées en corbeille."
+
+[[settings]]
+key     = "max_upload_mb"
+scope   = "global"
+group   = "import"
+type    = "enum"
+default = 100
+label   = "Taille maximale d'une photo"
+description = "Poids au-delà duquel un import est refusé, avant toute écriture sur le stockage."
+unit    = "Mo"
+values  = [
+    { value = 10,  label = "10 Mo" },
+    { value = 25,  label = "25 Mo" },
+    { value = 50,  label = "50 Mo" },
+    { value = 100, label = "100 Mo" },
+    { value = 250, label = "250 Mo" },
+    { value = 500, label = "500 Mo" },
+]
+
+[[settings]]
+key     = "accepted_formats"
+scope   = "global"
+group   = "import"
+type    = "enum"
+default = "all"
+label   = "Formats acceptés"
+description = "HEIC, HEIF et AVIF sont stockés tels quels mais ne sont pas décodés : ni dimensions, ni miniature, ni aperçu. Les refuser garantit une galerie homogène."
+values  = [
+    { value = "all",       label = "Tous les formats image" },
+    { value = "decodable", label = "Seulement les formats affichables (JPEG, PNG, WebP, GIF, TIFF)" },
+]
+
 [[settings]]
 key     = "thumbnail_size"
 scope   = "global"
+group   = "thumbnails"
 type    = "enum"
 default = 256
 label   = "Taille des miniatures"
@@ -82,6 +146,7 @@ values  = [
 [[settings]]
 key     = "jpeg_quality"
 scope   = "global"
+group   = "thumbnails"
 type    = "enum"
 default = 85
 label   = "Qualité JPEG des miniatures"
@@ -94,8 +159,24 @@ values  = [
 ]
 
 [[settings]]
+key     = "preview_size"
+scope   = "global"
+group   = "thumbnails"
+type    = "enum"
+default = 1200
+label   = "Taille des aperçus plein écran"
+description = "Côté le plus long, en pixels, de l'aperçu servi en plein écran et aux liens de partage (les aperçus existants ne sont pas régénérés)."
+values  = [
+    { value = 800,  label = "800 px" },
+    { value = 1200, label = "1200 px" },
+    { value = 1600, label = "1600 px" },
+    { value = 2048, label = "2048 px" },
+]
+
+[[settings]]
 key     = "trash_auto_delete_days"
 scope   = "global"
+group   = "trash"
 type    = "enum"
 default = 30
 label   = "Auto-suppression de la corbeille"
@@ -110,6 +191,7 @@ values  = [
 [[settings]]
 key     = "allow_public_sharing"
 scope   = "global"
+group   = "sharing"
 type    = "bool"
 default = true
 label   = "Partage public activé"
@@ -118,6 +200,7 @@ description = "Autorise la création de liens de partage publics pour les photos
 [[settings]]
 key     = "share_link_max_days"
 scope   = "global"
+group   = "sharing"
 type    = "enum"
 default = 30
 label   = "Durée maximale des liens de partage"
@@ -129,6 +212,24 @@ values  = [
     { value = 365, label = "1 an" },
     { value = 0,   label = "Illimité" },
 ]
+
+[[settings]]
+key     = "share_allow_download"
+scope   = "global"
+group   = "sharing"
+type    = "bool"
+default = true
+label   = "Téléchargement du fichier d'origine"
+description = "Désactivé, un lien public affiche toujours la photo (aperçu redimensionné) mais ne permet plus de récupérer le fichier d'origine. S'applique aussi aux liens déjà distribués."
+
+[[settings]]
+key     = "share_expose_metadata"
+scope   = "global"
+group   = "sharing"
+type    = "bool"
+default = false
+label   = "Divulguer les métadonnées de prise de vue"
+description = "Date de prise de vue, appareil et coordonnées GPS. Désactivé, un lien public n'expose aucune de ces informations — le lieu où la photo a été prise reste privé."
 
 [events]
 subscribed = [

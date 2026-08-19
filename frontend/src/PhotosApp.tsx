@@ -489,6 +489,43 @@ export default function PhotosApp({ starred, trashed, albumsView }: PhotosAppPro
     })
   }
 
+  // ── Deletion of the current selection ────────────────────────────────────────
+  // Single entry point for the header buttons and the Delete key, so a keystroke
+  // behaves exactly like a click (permanent delete keeps its confirmation).
+  const trashSelected = useCallback(() => {
+    if (!selectedPhotos.size) return
+    selectedPhotos.forEach(id => trashMutation.mutate(id))
+    setSelectedPhotos(new Set())
+  }, [selectedPhotos, trashMutation])
+
+  const deleteSelectedForever = useCallback(async () => {
+    if (!selectedPhotos.size) return
+    const ok = await confirm({
+      title:        t('photos_delete_forever_title'),
+      message:      t('photos_delete_forever_message', { count: selectedPhotos.size }),
+      confirmLabel: t('photos_delete_forever_confirm'),
+      variant:      'danger',
+    })
+    if (ok) { selectedPhotos.forEach(id => deleteMutation.mutate(id)); setSelectedPhotos(new Set()) }
+  }, [selectedPhotos, deleteMutation, confirm, t])
+
+  // Delete key → same action as the selection's "Supprimer" button.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete') return
+      const el = e.target as HTMLElement | null
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
+      // Never while an overlay owns the screen (lightbox, album dialog, confirm).
+      if (lightboxPhoto || showCreateAlbum || confirmState) return
+      if (!selectedPhotos.size) return
+      e.preventDefault()
+      if (isTrashed) deleteSelectedForever()
+      else trashSelected()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedPhotos, isTrashed, lightboxPhoto, showCreateAlbum, confirmState, trashSelected, deleteSelectedForever])
+
   const uploadFiles = async (files: File[]) => {
     const images = files.filter(f => f.type.startsWith('image/'))
     if (!images.length) return
@@ -594,22 +631,16 @@ export default function PhotosApp({ starred, trashed, albumsView }: PhotosAppPro
                   <Button
                     variant="danger"
                     size="sm"
-                    onClick={async () => {
-                      const ok = await confirm({
-                        title:        t('photos_delete_forever_title'),
-                        message:      t('photos_delete_forever_message', { count: selectedPhotos.size }),
-                        confirmLabel: t('photos_delete_forever_confirm'),
-                        variant:      'danger',
-                      })
-                      if (ok) { selectedPhotos.forEach(id => deleteMutation.mutate(id)); setSelectedPhotos(new Set()) }
-                    }}
+                    title={`${t('delete')} (Suppr)`}
+                    onClick={deleteSelectedForever}
                   >{t('delete')}</Button>
                 </>
               ) : (
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => { selectedPhotos.forEach(id => trashMutation.mutate(id)); setSelectedPhotos(new Set()) }}
+                  title={`${t('delete')} (Suppr)`}
+                  onClick={trashSelected}
                 >{t('delete')}</Button>
               )}
             </div>

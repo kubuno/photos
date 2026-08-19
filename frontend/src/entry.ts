@@ -8,6 +8,7 @@ import { createElement, lazy } from 'react'
 import {
   RouteRegistry,
   SlotRegistry,
+  ExtensionRegistry,
   ModuleSettingsRegistry,
   WidgetRegistry,
   WaffleAppRegistry,
@@ -21,7 +22,7 @@ import PhotosImageSource from './PhotosImageSource'
 import './index.css'
 import './i18n'
 import PhotosImageViewer from './PhotosImageViewer'
-import PhotosNewActions from './PhotosNewActions'
+import { newActionItems } from './PhotosNewActions'
 import PhotosToolbar from './PhotosToolbar'
 import PhotosSidebarBody from './PhotosSidebarBody'
 import PhotosRecentWidget from './PhotosRecentWidget'
@@ -52,9 +53,14 @@ export function register() {
   useSidebarStore.getState().register({
     moduleId:    'photos',
     routePrefix: '/photos',
-    NewActions:  PhotosNewActions,
     SidebarBody: PhotosSidebarBody,
     collapsedBody: true,
+  })
+
+  // Sidebar "New" button: contribute MenuItem[] (data) to the shell menu.
+  ExtensionRegistry.register('shell.new-actions', 'photos', {
+    moduleId: 'photos',
+    items: newActionItems,
   })
 
   useToolbarStore.getState().register({

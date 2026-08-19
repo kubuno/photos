@@ -42,13 +42,31 @@ pub async fn create(
         return Err(PhotosError::Validation("photo_id et album_id sont mutuellement exclusifs".into()));
     }
 
+    // Instance policy: public links can be switched off entirely, and a maximum
+    // lifetime can be imposed. Every photos share is a public token link, so the
+    // switch gates them all.
+    let inst = state.instance();
+    if !inst.allow_public_sharing {
+        return Err(PhotosError::Forbidden);
+    }
+
     let mut token_bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut token_bytes);
     let token = URL_SAFE_NO_PAD.encode(token_bytes);
 
-    let expires_at = dto.expires_in_days.map(|d| {
-        chrono::Utc::now() + chrono::Duration::days(d)
-    });
+    // Apply the expiry ceiling. With a ceiling set, a link created with no expiry
+    // — or asking for a longer one — is clamped to the ceiling rather than left
+    // permanent.
+    let now = chrono::Utc::now();
+    let requested = dto.expires_in_days.filter(|d| *d > 0);
+    let expires_at = if inst.share_link_max_days > 0 {
+        let days = requested
+            .map(|d| d.min(inst.share_link_max_days))
+            .unwrap_or(inst.share_link_max_days);
+        Some(now + chrono::Duration::days(days))
+    } else {
+        requested.map(|d| now + chrono::Duration::days(d))
+    };
 
     let share = sqlx::query_as::<_, Share>(
         r#"INSERT INTO photos.shares (owner_id, photo_id, album_id, token, expires_at)

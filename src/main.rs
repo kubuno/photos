@@ -19,6 +19,25 @@ struct Manifest {
     /// Declarative settings manifest pushed to the core at registration.
     #[serde(default)]
     settings:      Vec<SettingDefRaw>,
+    /// Pages the admin panel is split into (`[[setting_groups]]`). Each becomes
+    /// an entry of the admin menu with its own address; a setting's `category`
+    /// becomes a tab inside its group.
+    #[serde(default)]
+    setting_groups: Vec<SettingGroupRaw>,
+}
+
+/// One `[[setting_groups]]` entry of module.toml, forwarded verbatim. `id` is a
+/// STABLE, UNTRANSLATED slug: it travels in the URL of the admin page.
+#[derive(Deserialize, Serialize)]
+struct SettingGroupRaw {
+    id:          String,
+    label:       String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    icon:        Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    position:    Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
 }
 
 /// One `[[settings]]` entry from module.toml. Serialized verbatim into the
@@ -38,12 +57,23 @@ struct SettingDefRaw {
     description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     category:    Option<String>,
+    /// Id of a `[[setting_groups]]` entry: which admin page this belongs to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    group:       Option<String>,
     #[serde(default)]
     public:      bool,
+    // ── Presentation metadata, forwarded untouched (an older core ignores it) ──
+    #[serde(default)]
+    advanced:    bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    risk:        Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit:        Option<String>,
 }
 
 #[derive(Deserialize)]
 struct ManifestModule {
+    #[allow(dead_code)]
     id:            String,
     display_name:  String,
     description:   Option<String>,
@@ -160,12 +190,50 @@ async fn main() -> Result<()> {
 
     let http = Client::new();
 
+    // Instance settings: compiled defaults, then one read from the core so the
+    // first thumbnails, shares and trash purge see the administrator's values.
+    let instance = Arc::new(std::sync::RwLock::new(
+        kubuno_photos::config::instance::InstanceConfig::default(),
+    ));
+    if let Some(cfg) = kubuno_photos::config::instance::fetch(
+        &http, &settings.core.url, &settings.core.internal_secret,
+    ).await {
+        if let Ok(mut w) = instance.write() { *w = cfg; }
+    }
+
     let state = AppState {
         db:       pool,
         settings: Arc::new(settings.clone()),
         storage,
         http:     http.clone(),
+        instance: instance.clone(),
     };
+
+    // Instance-settings refresher: an admin edit takes effect within a minute,
+    // no restart. A failed read keeps the last good values.
+    {
+        let http_r     = http.clone();
+        let settings_r = settings.clone();
+        let instance_r = instance.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                if let Some(cfg) = kubuno_photos::config::instance::fetch(
+                    &http_r, &settings_r.core.url, &settings_r.core.internal_secret,
+                ).await {
+                    if let Ok(mut w) = instance_r.write() { *w = cfg; }
+                }
+            }
+        });
+    }
+
+    // Background cleaner: purges photos trashed beyond the retention window.
+    {
+        let state_trash = state.clone();
+        tokio::spawn(async move {
+            kubuno_photos::services::maintenance::run_trash_cleaner(state_trash).await;
+        });
+    }
 
     register_with_core(&http, &settings).await;
 
@@ -250,6 +318,9 @@ async fn register_with_core(http: &Client, settings: &Settings) {
     let settings_schema: Value = manifest.as_ref()
         .map(|m| serde_json::to_value(&m.settings).unwrap_or_else(|_| json!([])))
         .unwrap_or_else(|| json!([]));
+    let setting_groups: Value = manifest.as_ref()
+        .map(|m| serde_json::to_value(&m.setting_groups).unwrap_or_else(|_| json!([])))
+        .unwrap_or_else(|| json!([]));
 
     let payload = json!({
         "module_id":          "photos",
@@ -262,6 +333,7 @@ async fn register_with_core(http: &Client, settings: &Settings) {
         "sidebar_items":      sidebar_items,
         "subscribed_events":  subscribed_events,
         "settings_schema":    settings_schema,
+        "setting_groups":     setting_groups,
     });
 
     for attempt in 1u32.. {
