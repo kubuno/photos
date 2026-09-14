@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher icon mirrors the web mark (photos/frontend/src/PhotosLogo.tsx):
+     the multicolour pinwheel photo mark on a white base; the launcher supplies
+     the rounded/circular mask. Inset into the adaptive-icon safe zone. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/photos_logo"
+    android:inset="18%" />

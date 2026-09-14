@@ -1,0 +1,47 @@
+package com.kubuno.photos.net
+
+import retrofit2.http.Body
+import retrofit2.http.DELETE
+import retrofit2.http.GET
+import retrofit2.http.PATCH
+import retrofit2.http.POST
+import retrofit2.http.Path
+import retrofit2.http.Query
+
+/**
+ * The photos module REST surface, proxied by the core at /api/v1/photos.
+ *
+ * Byte streams (thumbnail/preview/download) are NOT here: Coil fetches those
+ * directly through the account-authenticated call factory, so they never pass
+ * through Retrofit.
+ */
+interface PhotosApi {
+
+    @GET("api/v1/photos/")
+    suspend fun list(
+        @Query("album_id") albumId: String? = null,
+        @Query("starred") starred: Boolean? = null,
+        @Query("trashed") trashed: Boolean? = null,
+        @Query("search") search: String? = null,
+        @Query("limit") limit: Int? = null,
+        @Query("offset") offset: Int? = null,
+    ): PhotoListResponse
+
+    @GET("api/v1/photos/{id}")
+    suspend fun get(@Path("id") id: String): PhotoResponse
+
+    @PATCH("api/v1/photos/{id}")
+    suspend fun patch(@Path("id") id: String, @Body body: PatchPhotoBody): PhotoResponse
+
+    @POST("api/v1/photos/{id}/trash")
+    suspend fun trash(@Path("id") id: String)
+
+    @POST("api/v1/photos/{id}/restore")
+    suspend fun restore(@Path("id") id: String)
+
+    @DELETE("api/v1/photos/{id}")
+    suspend fun delete(@Path("id") id: String)
+
+    @GET("api/v1/photos/albums")
+    suspend fun albums(): AlbumListResponse
+}
