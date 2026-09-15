@@ -59,4 +59,13 @@ interface PhotosApi {
 
     @GET("api/v1/photos/albums")
     suspend fun albums(): AlbumListResponse
+
+    @POST("api/v1/photos/albums")
+    suspend fun createAlbum(@Body body: CreateAlbumBody): AlbumResponse
+
+    @GET("api/v1/photos/albums/{id}/photos")
+    suspend fun albumPhotos(@Path("id") id: String): PhotoListResponse
+
+    @POST("api/v1/photos/albums/{id}/photos")
+    suspend fun addToAlbum(@Path("id") id: String, @Body body: AddPhotosBody): AddedResponse
 }

@@ -66,6 +66,31 @@ data class AlbumListResponse(
     val albums: List<AlbumDto> = emptyList(),
 )
 
+/** A single-album envelope: `POST /albums`, `GET /albums/:id` return `{ "album": {...} }`. */
+@Serializable
+data class AlbumResponse(
+    val album: AlbumDto,
+)
+
+/** Body for `POST /albums`. */
+@Serializable
+data class CreateAlbumBody(
+    val name: String,
+    val description: String? = null,
+)
+
+/** Body for `POST /albums/:id/photos`. */
+@Serializable
+data class AddPhotosBody(
+    @SerialName("photo_ids") val photoIds: List<String>,
+)
+
+/** `POST /albums/:id/photos` returns `{ "added": n }`. */
+@Serializable
+data class AddedResponse(
+    val added: Int = 0,
+)
+
 /** Body for `PATCH /:id` — only the fields the app edits. */
 @Serializable
 data class PatchPhotoBody(

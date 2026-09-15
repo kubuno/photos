@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.kubuno.android.account.SharedAccount
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.kubuno.android.account.SharedAccounts
+import com.kubuno.photos.net.AddPhotosBody
 import com.kubuno.photos.net.AlbumDto
+import com.kubuno.photos.net.CreateAlbumBody
 import com.kubuno.photos.net.PatchPhotoBody
 import com.kubuno.photos.net.PhotoDto
 import com.kubuno.photos.net.PhotosApi
@@ -57,10 +59,10 @@ data class PhotosUiState(
     val tab: PhotosTab = PhotosTab.PHOTOS,
     /** Selection mode is on whenever this is non-empty. */
     val selected: Set<String> = emptySet(),
-    /** Index into the viewer's list of the open full-screen photo, or null when the grid is showing. */
+    /** Index into [viewerPhotos] of the open full-screen photo, or null when the grid is showing. */
     val viewerIndex: Int? = null,
-    /** When the viewer is open, whether it pages over the search results rather than the main roll. */
-    val inSearchViewer: Boolean = false,
+    /** The list the open viewer pages over (the main roll, a search, or an album). */
+    val viewerPhotos: List<PhotoDto> = emptyList(),
     /** True while a captured photo/video is being uploaded. */
     val uploading: Boolean = false,
     /** One-shot user message (shown as a toast, then cleared). */
@@ -75,6 +77,15 @@ data class PhotosUiState(
     val searchSections: List<PhotoSection> = emptyList(),
     /** A downloaded file ready to hand to the system share sheet (one-shot). */
     val shareReady: ShareReady? = null,
+    // ── Albums ───────────────────────────────────────────────────────────────
+    /** The album currently open full-screen, or null. */
+    val openAlbum: AlbumDto? = null,
+    val albumLoading: Boolean = false,
+    val albumPhotos: List<PhotoDto> = emptyList(),
+    val albumSections: List<PhotoSection> = emptyList(),
+    /** Whether the "add selection to an album" sheet is showing. */
+    val showAddToAlbum: Boolean = false,
+    val addingToAlbum: Boolean = false,
 )
 
 /** A file downloaded for sharing, with the mime type to tag the share intent. */
@@ -183,18 +194,19 @@ class PhotosViewModel @Inject constructor(
     }
 
     // ── Viewer ───────────────────────────────────────────────────────────────
-    fun openViewer(id: String) {
-        val index = _state.value.photos.indexOfFirst { it.id == id }
-        if (index >= 0) _state.value = _state.value.copy(viewerIndex = index, inSearchViewer = false)
-    }
+    fun openViewer(id: String) = openViewerIn(_state.value.photos, id)
 
-    fun openSearchViewer(id: String) {
-        val index = _state.value.searchResults.indexOfFirst { it.id == id }
-        if (index >= 0) _state.value = _state.value.copy(viewerIndex = index, inSearchViewer = true)
+    fun openSearchViewer(id: String) = openViewerIn(_state.value.searchResults, id)
+
+    fun openAlbumViewer(id: String) = openViewerIn(_state.value.albumPhotos, id)
+
+    private fun openViewerIn(list: List<PhotoDto>, id: String) {
+        val index = list.indexOfFirst { it.id == id }
+        if (index >= 0) _state.value = _state.value.copy(viewerIndex = index, viewerPhotos = list)
     }
 
     fun closeViewer() {
-        _state.value = _state.value.copy(viewerIndex = null, inSearchViewer = false)
+        _state.value = _state.value.copy(viewerIndex = null, viewerPhotos = emptyList())
     }
 
     // ── Search ───────────────────────────────────────────────────────────────
@@ -359,6 +371,83 @@ class PhotosViewModel @Inject constructor(
         _state.value = _state.value.copy(message = null)
     }
 
+    // ── Albums ───────────────────────────────────────────────────────────────
+    /** Opens an album full-screen and loads its photos. */
+    fun openAlbum(album: AlbumDto) {
+        val api = api ?: return
+        _state.value = _state.value.copy(
+            openAlbum = album,
+            albumLoading = true,
+            albumPhotos = emptyList(),
+            albumSections = emptyList(),
+        )
+        viewModelScope.launch {
+            val photos = runCatching {
+                withContext(Dispatchers.IO) { api.albumPhotos(album.id).photos }
+            }.getOrDefault(emptyList())
+            val ordered = photos.sortedByDescending { epochMillis(it) }
+            _state.value = _state.value.copy(
+                albumLoading = false,
+                albumPhotos = ordered,
+                albumSections = sectionsOf(ordered, GridDensity.DAY),
+            )
+        }
+    }
+
+    fun closeAlbum() {
+        _state.value = _state.value.copy(openAlbum = null, albumPhotos = emptyList(), albumSections = emptyList())
+    }
+
+    /** Opens the "add the current selection to an album" sheet. */
+    fun promptAddToAlbum() {
+        _state.value = _state.value.copy(showAddToAlbum = true)
+        viewModelScope.launch { loadAlbums() }
+    }
+
+    fun dismissAddToAlbum() {
+        _state.value = _state.value.copy(showAddToAlbum = false)
+    }
+
+    fun addSelectionToAlbum(albumId: String) {
+        val api = api ?: return
+        val ids = _state.value.selected.toList()
+        if (ids.isEmpty()) return
+        _state.value = _state.value.copy(addingToAlbum = true)
+        viewModelScope.launch {
+            val added = runCatching {
+                withContext(Dispatchers.IO) { api.addToAlbum(albumId, AddPhotosBody(ids)).added }
+            }.getOrNull()
+            finishAddToAlbum(added)
+        }
+    }
+
+    fun createAlbumWithSelection(name: String) {
+        val api = api ?: return
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        val ids = _state.value.selected.toList()
+        _state.value = _state.value.copy(addingToAlbum = true)
+        viewModelScope.launch {
+            val added = runCatching {
+                withContext(Dispatchers.IO) {
+                    val album = api.createAlbum(CreateAlbumBody(trimmed)).album
+                    if (ids.isNotEmpty()) api.addToAlbum(album.id, AddPhotosBody(ids)).added else 0
+                }
+            }.getOrNull()
+            finishAddToAlbum(added)
+        }
+    }
+
+    private suspend fun finishAddToAlbum(added: Int?) {
+        loadAlbums()
+        _state.value = _state.value.copy(
+            addingToAlbum = false,
+            showAddToAlbum = false,
+            selected = if (added != null) emptySet() else _state.value.selected,
+            message = if (added != null) "Ajouté à l'album" else "Échec de l'ajout à l'album",
+        )
+    }
+
     // ── Mutations ──────────────────────────────────────────────────────────
     /** Toggles the star on a photo, updating the local list optimistically. */
     fun toggleStar(id: String) {
@@ -388,24 +477,34 @@ class PhotosViewModel @Inject constructor(
     }
 
     private fun patchLocal(id: String, edit: (PhotoDto) -> PhotoDto) {
-        val photos = _state.value.photos.map { if (it.id == id) edit(it) else it }
-        val results = _state.value.searchResults.map { if (it.id == id) edit(it) else it }
+        val map = { list: List<PhotoDto> -> list.map { if (it.id == id) edit(it) else it } }
+        val photos = map(_state.value.photos)
+        val results = map(_state.value.searchResults)
+        val album = map(_state.value.albumPhotos)
         _state.value = _state.value.copy(
             photos = photos,
             sections = sectionsOf(photos, _state.value.density),
             searchResults = results,
             searchSections = sectionsOf(results, GridDensity.DAY),
+            albumPhotos = album,
+            albumSections = sectionsOf(album, GridDensity.DAY),
+            viewerPhotos = map(_state.value.viewerPhotos),
         )
     }
 
     private fun removeLocal(ids: Set<String>) {
-        val photos = _state.value.photos.filterNot { it.id in ids }
-        val results = _state.value.searchResults.filterNot { it.id in ids }
+        val drop = { list: List<PhotoDto> -> list.filterNot { it.id in ids } }
+        val photos = drop(_state.value.photos)
+        val results = drop(_state.value.searchResults)
+        val album = drop(_state.value.albumPhotos)
         _state.value = _state.value.copy(
             photos = photos,
             sections = sectionsOf(photos, _state.value.density),
             searchResults = results,
             searchSections = sectionsOf(results, GridDensity.DAY),
+            albumPhotos = album,
+            albumSections = sectionsOf(album, GridDensity.DAY),
+            viewerPhotos = drop(_state.value.viewerPhotos),
         )
     }
 

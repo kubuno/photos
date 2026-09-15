@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Search
@@ -37,9 +39,13 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Collections
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -141,12 +147,12 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
     }
 
     // The full-screen viewer takes over everything when a photo is open. It
-    // pages over the search results when opened from search, else the main roll.
+    // pages over whichever list it was opened from (main roll, search, album).
     val viewerIndex = state.viewerIndex
     if (viewerIndex != null) {
         PhotoViewer(
             account = account,
-            photos = if (state.inSearchViewer) state.searchResults else state.photos,
+            photos = state.viewerPhotos,
             startIndex = viewerIndex,
             onClose = viewModel::closeViewer,
             onToggleStar = viewModel::toggleStar,
@@ -166,7 +172,7 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
         // Content per tab. The grid reserves bottom room for the floating pill.
         when (state.tab) {
             PhotosTab.PHOTOS -> PhotosTabContent(account, state, viewModel, selectionMode)
-            PhotosTab.COLLECTIONS -> CollectionsTabContent(state.albums)
+            PhotosTab.COLLECTIONS -> CollectionsTabContent(account, state.albums, viewModel::openAlbum)
             PhotosTab.CREATE -> CreateTabContent(
                 onTakePhoto = { capture("jpg") { takePhoto.launch(it) } },
                 onTakeVideo = { capture("mp4") { takeVideo.launch(it) } },
@@ -183,6 +189,7 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
             SelectionBar(
                 count = state.selected.size,
                 onClose = viewModel::clearSelection,
+                onAddToAlbum = viewModel::promptAddToAlbum,
                 onDelete = viewModel::trashSelection,
                 modifier = Modifier.align(Alignment.TopCenter),
             )
@@ -206,6 +213,22 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
         // Full-screen search over everything else while active.
         if (state.searchActive) {
             SearchScreen(account = account, state = state, viewModel = viewModel)
+        }
+
+        // Full-screen album view.
+        state.openAlbum?.let { album ->
+            AlbumScreen(account = account, album = album, state = state, viewModel = viewModel)
+        }
+
+        // Sheet to add the current selection to a new or existing album.
+        if (state.showAddToAlbum) {
+            AddToAlbumSheet(
+                albums = state.albums,
+                busy = state.addingToAlbum,
+                onPick = viewModel::addSelectionToAlbum,
+                onCreate = viewModel::createAlbumWithSelection,
+                onDismiss = viewModel::dismissAddToAlbum,
+            )
         }
 
         // Upload scrim — blocks input and shows progress while a capture uploads.
@@ -309,6 +332,7 @@ private fun TopBar(account: SharedAccount, modifier: Modifier = Modifier) {
 private fun SelectionBar(
     count: Int,
     onClose: () -> Unit,
+    onAddToAlbum: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -333,6 +357,9 @@ private fun SelectionBar(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
+            IconButton(onClick = onAddToAlbum) {
+                Icon(Icons.Filled.LibraryAdd, contentDescription = "Ajouter à un album")
+            }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Filled.Delete, contentDescription = "Supprimer")
             }
@@ -423,7 +450,11 @@ private fun NavItem(
 }
 
 @Composable
-private fun CollectionsTabContent(albums: List<AlbumDto>) {
+private fun CollectionsTabContent(
+    account: SharedAccount,
+    albums: List<AlbumDto>,
+    onOpen: (AlbumDto) -> Unit,
+) {
     Column(
         Modifier
             .fillMaxSize()
@@ -437,7 +468,11 @@ private fun CollectionsTabContent(albums: List<AlbumDto>) {
         )
         if (albums.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Aucun album", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Aucun album. Sélectionnez des photos pour en créer un.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(32.dp),
+                )
             }
         } else {
             LazyVerticalGrid(
@@ -446,20 +481,29 @@ private fun CollectionsTabContent(albums: List<AlbumDto>) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(albums, key = { it.id }) { album -> AlbumCard(album) }
+                items(albums, key = { it.id }) { album -> AlbumCard(account, album, onOpen) }
             }
         }
     }
 }
 
 @Composable
-private fun AlbumCard(album: AlbumDto) {
-    Column {
+private fun AlbumCard(account: SharedAccount, album: AlbumDto, onOpen: (AlbumDto) -> Unit) {
+    Column(Modifier.clickable { onOpen(album) }) {
         Surface(
             shape = PhotosShape.Card,
             color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.fillMaxWidth().size(width = 0.dp, height = 150.dp),
-        ) {}
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+        ) {
+            album.coverPhotoId?.let { cover ->
+                coil3.compose.AsyncImage(
+                    model = thumbUrl(account, cover),
+                    contentDescription = album.name,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
         Text(
             album.name,
             style = MaterialTheme.typography.bodyMedium,
@@ -472,6 +516,131 @@ private fun AlbumCard(album: AlbumDto) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 4.dp),
         )
+    }
+}
+
+@Composable
+private fun AlbumScreen(
+    account: SharedAccount,
+    album: AlbumDto,
+    state: PhotosUiState,
+    viewModel: PhotosViewModel,
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface)
+            .statusBarsPadding(),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = viewModel::closeAlbum) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
+            }
+            Text(
+                album.name,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        }
+        Box(Modifier.fillMaxSize()) {
+            when {
+                state.albumLoading && state.albumSections.isEmpty() ->
+                    CircularProgressIndicator(Modifier.align(Alignment.Center))
+
+                state.albumSections.isEmpty() ->
+                    Text(
+                        "Album vide",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.Center),
+                    )
+
+                else -> PhotoGrid(
+                    account = account,
+                    sections = state.albumSections,
+                    density = GridDensity.DAY,
+                    selected = emptySet(),
+                    selectionMode = false,
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp, start = 2.dp, end = 2.dp),
+                    onOpen = { viewModel.openAlbumViewer(it.id) },
+                    onToggleSelect = {},
+                    onToggleSection = {},
+                    onDensity = {},
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddToAlbumSheet(
+    albums: List<AlbumDto>,
+    busy: Boolean,
+    onPick: (String) -> Unit,
+    onCreate: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+        ) {
+            Text(
+                "Ajouter à un album",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+            var newName by remember { mutableStateOf("") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    enabled = !busy,
+                    placeholder = { Text("Nouvel album") },
+                )
+                IconButton(
+                    onClick = { if (newName.isNotBlank()) onCreate(newName) },
+                    enabled = !busy && newName.isNotBlank(),
+                ) {
+                    Icon(Icons.Filled.AddCircleOutline, contentDescription = "Créer l'album", tint = PhotosColors.Blue)
+                }
+            }
+            if (busy) {
+                LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+            }
+            albums.forEach { album ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !busy) { onPick(album.id) }
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.PhotoLibrary,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Column(Modifier.padding(start = 16.dp)) {
+                        Text(album.name, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "${album.photoCount} élément${if (album.photoCount > 1) "s" else ""}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
