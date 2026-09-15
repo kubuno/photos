@@ -3,4 +3,6 @@
      and upload it. Only that subfolder is exposed through the FileProvider. -->
 <paths>
     <cache-path name="captures" path="captures/" />
+    <!-- Originals downloaded for the share sheet. -->
+    <cache-path name="shared" path="shared/" />
 </paths>

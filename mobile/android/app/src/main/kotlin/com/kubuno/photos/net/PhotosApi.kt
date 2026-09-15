@@ -1,7 +1,9 @@
 package com.kubuno.photos.net
 
 import okhttp3.MultipartBody
+import okhttp3.ResponseBody
 import retrofit2.http.Body
+import retrofit2.http.Streaming
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Multipart
@@ -34,6 +36,11 @@ interface PhotosApi {
     @Multipart
     @POST("api/v1/photos/")
     suspend fun upload(@Part photo: MultipartBody.Part): PhotoResponse
+
+    /** The original bytes, for sharing/exporting. */
+    @Streaming
+    @GET("api/v1/photos/{id}/download")
+    suspend fun download(@Path("id") id: String): ResponseBody
 
     @GET("api/v1/photos/{id}")
     suspend fun get(@Path("id") id: String): PhotoResponse

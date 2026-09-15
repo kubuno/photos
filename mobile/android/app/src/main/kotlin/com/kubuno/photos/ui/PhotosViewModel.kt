@@ -1,8 +1,10 @@
 package com.kubuno.photos.ui
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kubuno.android.account.SharedAccount
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.kubuno.android.account.SharedAccounts
 import com.kubuno.photos.net.AlbumDto
 import com.kubuno.photos.net.PatchPhotoBody
@@ -71,10 +73,16 @@ data class PhotosUiState(
     val searchLoading: Boolean = false,
     val searchResults: List<PhotoDto> = emptyList(),
     val searchSections: List<PhotoSection> = emptyList(),
+    /** A downloaded file ready to hand to the system share sheet (one-shot). */
+    val shareReady: ShareReady? = null,
 )
+
+/** A file downloaded for sharing, with the mime type to tag the share intent. */
+data class ShareReady(val file: java.io.File, val mime: String)
 
 @HiltViewModel
 class PhotosViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     sharedAccounts: SharedAccounts,
     private val clients: PhotosClients,
 ) : ViewModel() {
@@ -309,6 +317,43 @@ class PhotosViewModel @Inject constructor(
     }
 
     private fun plural(n: Int) = if (n > 1) "s" else ""
+
+    /**
+     * Downloads a photo's original bytes to a cache file and signals the UI to
+     * open the system share sheet. The bytes are authenticated through the same
+     * brokered client as everything else.
+     */
+    fun share(photo: PhotoDto) {
+        val api = api ?: return
+        _state.value = _state.value.copy(message = "Préparation du partage…")
+        viewModelScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    val dir = java.io.File(appContext.cacheDir, "shared").apply { mkdirs() }
+                    // A clean, human file name for the share target.
+                    val name = (photo.originalName ?: photo.filename ?: "photo")
+                        .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                    val file = java.io.File(dir, name)
+                    api.download(photo.id).byteStream().use { input ->
+                        file.outputStream().use { input.copyTo(it) }
+                    }
+                    file
+                }
+            }
+            result.onSuccess { file ->
+                _state.value = _state.value.copy(
+                    message = null,
+                    shareReady = ShareReady(file, photo.mimeType ?: "*/*"),
+                )
+            }.onFailure {
+                _state.value = _state.value.copy(message = "Partage impossible")
+            }
+        }
+    }
+
+    fun shareConsumed() {
+        _state.value = _state.value.copy(shareReady = null)
+    }
 
     fun clearMessage() {
         _state.value = _state.value.copy(message = null)

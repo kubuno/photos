@@ -1,5 +1,6 @@
 package com.kubuno.photos.ui
 
+import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -122,6 +123,23 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
         }
     }
 
+    // Once a photo's bytes are downloaded, hand them to the system share sheet.
+    LaunchedEffect(state.shareReady) {
+        val ready = state.shareReady ?: return@LaunchedEffect
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            ready.file,
+        )
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = ready.mime
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "Partager"))
+        viewModel.shareConsumed()
+    }
+
     // The full-screen viewer takes over everything when a photo is open. It
     // pages over the search results when opened from search, else the main roll.
     val viewerIndex = state.viewerIndex
@@ -132,7 +150,7 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
             startIndex = viewerIndex,
             onClose = viewModel::closeViewer,
             onToggleStar = viewModel::toggleStar,
-            onShare = { Toast.makeText(context, "Partage bientôt disponible", Toast.LENGTH_SHORT).show() },
+            onShare = viewModel::share,
             onDelete = { photo ->
                 viewModel.toggleSelect(photo.id)
                 viewModel.trashSelection()
