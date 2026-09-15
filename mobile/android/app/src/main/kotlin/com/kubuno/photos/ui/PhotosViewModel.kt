@@ -21,6 +21,8 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,12 +55,22 @@ data class PhotosUiState(
     val tab: PhotosTab = PhotosTab.PHOTOS,
     /** Selection mode is on whenever this is non-empty. */
     val selected: Set<String> = emptySet(),
-    /** Index into [photos] of the open full-screen photo, or null when the grid is showing. */
+    /** Index into the viewer's list of the open full-screen photo, or null when the grid is showing. */
     val viewerIndex: Int? = null,
+    /** When the viewer is open, whether it pages over the search results rather than the main roll. */
+    val inSearchViewer: Boolean = false,
     /** True while a captured photo/video is being uploaded. */
     val uploading: Boolean = false,
     /** One-shot user message (shown as a toast, then cleared). */
     val message: String? = null,
+    // ── Search ───────────────────────────────────────────────────────────────
+    val searchActive: Boolean = false,
+    val query: String = "",
+    /** The active browsable category: "starred", "video", "trashed", or null. */
+    val activeCategory: String? = null,
+    val searchLoading: Boolean = false,
+    val searchResults: List<PhotoDto> = emptyList(),
+    val searchSections: List<PhotoSection> = emptyList(),
 )
 
 @HiltViewModel
@@ -165,11 +177,85 @@ class PhotosViewModel @Inject constructor(
     // ── Viewer ───────────────────────────────────────────────────────────────
     fun openViewer(id: String) {
         val index = _state.value.photos.indexOfFirst { it.id == id }
-        if (index >= 0) _state.value = _state.value.copy(viewerIndex = index)
+        if (index >= 0) _state.value = _state.value.copy(viewerIndex = index, inSearchViewer = false)
+    }
+
+    fun openSearchViewer(id: String) {
+        val index = _state.value.searchResults.indexOfFirst { it.id == id }
+        if (index >= 0) _state.value = _state.value.copy(viewerIndex = index, inSearchViewer = true)
     }
 
     fun closeViewer() {
-        _state.value = _state.value.copy(viewerIndex = null)
+        _state.value = _state.value.copy(viewerIndex = null, inSearchViewer = false)
+    }
+
+    // ── Search ───────────────────────────────────────────────────────────────
+    private var searchJob: Job? = null
+
+    fun openSearch() {
+        _state.value = _state.value.copy(searchActive = true)
+    }
+
+    fun closeSearch() {
+        searchJob?.cancel()
+        _state.value = _state.value.copy(
+            searchActive = false,
+            query = "",
+            activeCategory = null,
+            searchResults = emptyList(),
+            searchSections = emptyList(),
+            searchLoading = false,
+        )
+    }
+
+    fun onQuery(q: String) {
+        _state.value = _state.value.copy(query = q)
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(300)
+            runSearch()
+        }
+    }
+
+    /** Toggle a browsable category (Favoris / Vidéos / Corbeille). */
+    fun selectCategory(category: String?) {
+        val next = if (_state.value.activeCategory == category) null else category
+        _state.value = _state.value.copy(activeCategory = next)
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch { runSearch() }
+    }
+
+    private suspend fun runSearch() {
+        val api = api ?: return
+        val q = _state.value.query.trim()
+        val category = _state.value.activeCategory
+        if (q.isEmpty() && category == null) {
+            _state.value = _state.value.copy(
+                searchResults = emptyList(),
+                searchSections = emptyList(),
+                searchLoading = false,
+            )
+            return
+        }
+        _state.value = _state.value.copy(searchLoading = true)
+        val raw = runCatching {
+            withContext(Dispatchers.IO) {
+                api.list(
+                    starred = if (category == "starred") true else null,
+                    trashed = category == "trashed",
+                    search = q.ifEmpty { null },
+                    limit = 500,
+                ).photos
+            }
+        }.getOrDefault(emptyList())
+        // "Vidéos" has no server flag, so narrow the list by mime type here.
+        val filtered = if (category == "video") raw.filter { it.isVideo } else raw
+        val ordered = filtered.sortedByDescending { epochMillis(it) }
+        _state.value = _state.value.copy(
+            searchLoading = false,
+            searchResults = ordered,
+            searchSections = sectionsOf(ordered, GridDensity.DAY),
+        )
     }
 
     // ── Capture upload ─────────────────────────────────────────────────────
@@ -258,17 +344,23 @@ class PhotosViewModel @Inject constructor(
 
     private fun patchLocal(id: String, edit: (PhotoDto) -> PhotoDto) {
         val photos = _state.value.photos.map { if (it.id == id) edit(it) else it }
+        val results = _state.value.searchResults.map { if (it.id == id) edit(it) else it }
         _state.value = _state.value.copy(
             photos = photos,
             sections = sectionsOf(photos, _state.value.density),
+            searchResults = results,
+            searchSections = sectionsOf(results, GridDensity.DAY),
         )
     }
 
     private fun removeLocal(ids: Set<String>) {
         val photos = _state.value.photos.filterNot { it.id in ids }
+        val results = _state.value.searchResults.filterNot { it.id in ids }
         _state.value = _state.value.copy(
             photos = photos,
             sections = sectionsOf(photos, _state.value.density),
+            searchResults = results,
+            searchSections = sectionsOf(results, GridDensity.DAY),
         )
     }
 

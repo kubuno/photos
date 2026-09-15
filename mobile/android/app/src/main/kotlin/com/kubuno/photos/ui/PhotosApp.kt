@@ -122,12 +122,13 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
         }
     }
 
-    // The full-screen viewer takes over everything when a photo is open.
+    // The full-screen viewer takes over everything when a photo is open. It
+    // pages over the search results when opened from search, else the main roll.
     val viewerIndex = state.viewerIndex
     if (viewerIndex != null) {
         PhotoViewer(
             account = account,
-            photos = state.photos,
+            photos = if (state.inSearchViewer) state.searchResults else state.photos,
             startIndex = viewerIndex,
             onClose = viewModel::closeViewer,
             onToggleStar = viewModel::toggleStar,
@@ -176,12 +177,17 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
             NavPill(
                 tab = state.tab,
                 onSelect = viewModel::selectTab,
-                onSearch = { Toast.makeText(context, "Recherche bientôt disponible", Toast.LENGTH_SHORT).show() },
+                onSearch = viewModel::openSearch,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
                     .padding(bottom = 12.dp),
             )
+        }
+
+        // Full-screen search over everything else while active.
+        if (state.searchActive) {
+            SearchScreen(account = account, state = state, viewModel = viewModel)
         }
 
         // Upload scrim — blocks input and shows progress while a capture uploads.
