@@ -28,10 +28,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.kubuno.android.account.SharedAccount
 
 /**
@@ -133,11 +139,22 @@ private fun BigAvatar(account: SharedAccount) {
     val initial = account.label.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
     Surface(modifier = Modifier.size(96.dp), shape = CircleShape, color = PhotosColors.Blue) {
         Box(contentAlignment = Alignment.Center) {
+            // Initial letter shows underneath; the avatar image covers it once
+            // loaded, and stays hidden (letter visible) if the user has none.
             Text(
                 initial,
                 color = Color.White,
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.SemiBold,
+            )
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(avatarUrl(account))
+                    .crossfade(true)
+                    .build(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize().clip(CircleShape),
             )
         }
     }

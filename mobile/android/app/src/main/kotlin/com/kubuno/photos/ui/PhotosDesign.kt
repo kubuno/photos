@@ -67,3 +67,12 @@ fun thumbUrl(account: SharedAccount, photoId: String): String =
 /** Absolute URL of a photo's full-screen preview. */
 fun previewUrl(account: SharedAccount, photoId: String): String =
     "${account.serverUrl.trimEnd('/')}/api/v1/photos/$photoId/preview"
+
+/**
+ * Absolute URL of the account owner's profile avatar, served by the core at
+ * /api/v1/users/<id>/avatar. Coil authenticates it through the same call
+ * factory as the photo thumbnails. Falls through to no image when the user has
+ * no avatar, so callers should keep an initial-letter fallback underneath.
+ */
+fun avatarUrl(account: SharedAccount): String =
+    "${account.serverUrl.trimEnd('/')}/api/v1/users/${account.userId}/avatar"
