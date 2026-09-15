@@ -17,6 +17,9 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import javax.inject.Inject
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,6 +52,10 @@ data class PhotosUiState(
     val selected: Set<String> = emptySet(),
     /** Index into [photos] of the open full-screen photo, or null when the grid is showing. */
     val viewerIndex: Int? = null,
+    /** True while a captured photo/video is being uploaded. */
+    val uploading: Boolean = false,
+    /** One-shot user message (shown as a toast, then cleared). */
+    val message: String? = null,
 )
 
 @HiltViewModel
@@ -160,6 +167,36 @@ class PhotosViewModel @Inject constructor(
 
     fun closeViewer() {
         _state.value = _state.value.copy(viewerIndex = null)
+    }
+
+    // ── Capture upload ─────────────────────────────────────────────────────
+    /**
+     * Uploads a freshly captured photo or video, then refreshes the grid and
+     * jumps to it. Bytes are read by the caller (which has the Context); the
+     * view model only needs the bytes, the mime type, and a file name.
+     */
+    fun uploadCapture(bytes: ByteArray, mime: String, name: String) {
+        val api = api ?: return
+        _state.value = _state.value.copy(uploading = true, tab = PhotosTab.PHOTOS)
+        viewModelScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    val body = bytes.toRequestBody(mime.toMediaTypeOrNull())
+                    val part = MultipartBody.Part.createFormData("photo", name, body)
+                    api.upload(part)
+                }
+            }
+            result.onSuccess {
+                _state.value = _state.value.copy(uploading = false, message = "Ajouté à la photothèque")
+                refresh()
+            }.onFailure { e ->
+                _state.value = _state.value.copy(uploading = false, message = "Échec de l'envoi : ${e.message ?: "erreur"}")
+            }
+        }
+    }
+
+    fun clearMessage() {
+        _state.value = _state.value.copy(message = null)
     }
 
     // ── Mutations ──────────────────────────────────────────────────────────

@@ -26,6 +26,18 @@
             </intent-filter>
         </activity>
 
+        <!-- Hands the captured photo/video file to the camera app to write into,
+             then back to us to read and upload. Never exported. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- The com.kubuno account authenticator (service + type) is contributed
              by :core-account, so this app reuses the same shared accounts as the
              drive, mail and maps apps. Nothing to declare here. -->

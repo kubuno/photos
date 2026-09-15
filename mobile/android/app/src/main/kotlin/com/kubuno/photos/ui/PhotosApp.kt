@@ -1,6 +1,8 @@
 package com.kubuno.photos.ui
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,8 +27,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Collections
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,6 +42,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -61,6 +68,39 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
         return
     }
     if (account == null) return
+
+    // Camera capture → upload. We create the output file ourselves (cacheDir),
+    // hand the camera app a FileProvider URI to write into, then read the bytes
+    // back and upload them. No CAMERA permission: the system camera app owns it.
+    var pendingCapture by remember { mutableStateOf<java.io.File?>(null) }
+    fun consumeCapture(ok: Boolean, mime: String) {
+        val file = pendingCapture
+        pendingCapture = null
+        if (ok && file != null) {
+            val bytes = runCatching { file.readBytes() }.getOrNull()
+            if (bytes != null) viewModel.uploadCapture(bytes, mime, file.name)
+        }
+        file?.delete()
+    }
+    val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) {
+        consumeCapture(it, "image/jpeg")
+    }
+    val takeVideo = rememberLauncherForActivityResult(ActivityResultContracts.CaptureVideo()) {
+        consumeCapture(it, "video/mp4")
+    }
+    fun capture(extension: String, launch: (android.net.Uri) -> Unit) {
+        val file = createCaptureFile(context, extension)
+        pendingCapture = file
+        launch(captureUri(context, file))
+    }
+
+    // Toasts for upload outcome.
+    LaunchedEffect(state.message) {
+        state.message?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.clearMessage()
+        }
+    }
 
     // The full-screen viewer takes over everything when a photo is open.
     val viewerIndex = state.viewerIndex
@@ -88,7 +128,10 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
         when (state.tab) {
             PhotosTab.PHOTOS -> PhotosTabContent(account, state, viewModel, selectionMode)
             PhotosTab.COLLECTIONS -> CollectionsTabContent(state.albums)
-            PhotosTab.CREATE -> CreateTabPlaceholder()
+            PhotosTab.CREATE -> CreateTabContent(
+                onTakePhoto = { capture("jpg") { takePhoto.launch(it) } },
+                onTakeVideo = { capture("mp4") { takeVideo.launch(it) } },
+            )
         }
 
         // Top bar: the account avatar when idle, a selection action bar otherwise.
@@ -115,8 +158,39 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
                     .padding(bottom = 12.dp),
             )
         }
+
+        // Upload scrim — blocks input and shows progress while a capture uploads.
+        if (state.uploading) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable(enabled = false) {},
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = Color.White)
+                    Spacer(Modifier.size(12.dp))
+                    Text("Envoi…", color = Color.White)
+                }
+            }
+        }
     }
 }
+
+/** A fresh, unique output file for a capture, under cacheDir/captures. */
+private fun createCaptureFile(context: android.content.Context, extension: String): java.io.File {
+    val dir = java.io.File(context.cacheDir, "captures").apply { mkdirs() }
+    return java.io.File(dir, "capture_${System.currentTimeMillis()}.$extension")
+}
+
+/** A grantable content URI for [file], for the camera app to write into. */
+private fun captureUri(context: android.content.Context, file: java.io.File): android.net.Uri =
+    androidx.core.content.FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        file,
+    )
 
 @Composable
 private fun PhotosTabContent(
@@ -344,17 +418,55 @@ private fun AlbumCard(album: AlbumDto) {
 }
 
 @Composable
-private fun CreateTabPlaceholder() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Filled.AddCircleOutline,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(48.dp),
-            )
-            Spacer(Modifier.size(12.dp))
-            Text("Créations (collages, films) — bientôt", color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun CreateTabContent(onTakePhoto: () -> Unit, onTakeVideo: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding(),
+    ) {
+        Text(
+            "Créer",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(16.dp),
+        )
+        CreateAction(
+            icon = Icons.Filled.PhotoCamera,
+            title = "Prendre une photo",
+            subtitle = "Capturer et ajouter à la photothèque",
+            onClick = onTakePhoto,
+        )
+        CreateAction(
+            icon = Icons.Filled.Videocam,
+            title = "Filmer une vidéo",
+            subtitle = "Enregistrer et ajouter à la photothèque",
+            onClick = onTakeVideo,
+        )
+    }
+}
+
+@Composable
+private fun CreateAction(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(shape = CircleShape, color = PhotosColors.Blue.copy(alpha = 0.14f), modifier = Modifier.size(48.dp)) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = PhotosColors.Blue, modifier = Modifier.size(24.dp))
+            }
+        }
+        Column(Modifier.padding(start = 16.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

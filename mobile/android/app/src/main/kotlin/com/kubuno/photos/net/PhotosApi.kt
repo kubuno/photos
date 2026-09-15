@@ -1,10 +1,13 @@
 package com.kubuno.photos.net
 
+import okhttp3.MultipartBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -26,6 +29,11 @@ interface PhotosApi {
         @Query("limit") limit: Int? = null,
         @Query("offset") offset: Int? = null,
     ): PhotoListResponse
+
+    /** Uploads one captured photo/video. The module reads the "photo" part. */
+    @Multipart
+    @POST("api/v1/photos/")
+    suspend fun upload(@Part photo: MultipartBody.Part): PhotoResponse
 
     @GET("api/v1/photos/{id}")
     suspend fun get(@Path("id") id: String): PhotoResponse
