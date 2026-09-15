@@ -71,6 +71,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kubuno.android.account.SharedAccount
 import com.kubuno.android.ui.components.KubunoButton
 import com.kubuno.android.ui.components.KubunoProgressBar
+import com.kubuno.android.ui.components.KubunoButtonSize
 import com.kubuno.android.ui.components.KubunoButtonVariant
 import com.kubuno.android.ui.components.KubunoTextField
 import com.kubuno.photos.net.AlbumDto
@@ -674,13 +675,15 @@ private fun RenameAlbumDialog(current: String, onRename: (String) -> Unit, onDis
             )
         },
         confirmButton = {
-            androidx.compose.material3.TextButton(
+            KubunoButton(
+                text = "Renommer",
                 onClick = { if (name.isNotBlank()) onRename(name) },
                 enabled = name.isNotBlank(),
-            ) { Text("Renommer") }
+                size = KubunoButtonSize.SM,
+            )
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Annuler") }
+            KubunoButton("Annuler", onClick = onDismiss, variant = KubunoButtonVariant.GHOST, size = KubunoButtonSize.SM)
         },
     )
 }
