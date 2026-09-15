@@ -108,7 +108,9 @@ fun OnboardingScreen(account: SharedAccount, onStart: (autoBackup: Boolean) -> U
                 }
                 Spacer(Modifier.height(28.dp))
                 KubunoButton(
-                    text = "C'est parti",
+                    // Turning the backup off changes what the button promises:
+                    // it no longer starts a backup, it just carries on without.
+                    text = if (autoBackup) "C'est parti" else "Continuer sans sauvegarder",
                     onClick = { onStart(autoBackup) },
                     modifier = Modifier.fillMaxWidth(0.72f),
                     size = KubunoButtonSize.LG,
