@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -39,6 +37,8 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.kubuno.android.account.SharedAccount
+import com.kubuno.android.ui.components.KubunoButton
+import com.kubuno.android.ui.components.KubunoButtonSize
 
 /**
  * First-run welcome screen. Shown until the user validates it with "C'est
@@ -114,14 +114,12 @@ fun OnboardingScreen(account: SharedAccount, onStart: (autoBackup: Boolean) -> U
                     )
                 }
                 Spacer(Modifier.height(28.dp))
-                Button(
+                KubunoButton(
+                    text = "C'est parti",
                     onClick = { onStart(autoBackup) },
                     modifier = Modifier.fillMaxWidth(0.72f),
-                    shape = PhotosShape.Pill,
-                    colors = ButtonDefaults.buttonColors(containerColor = PhotosColors.Blue),
-                ) {
-                    Text("C'est parti", style = MaterialTheme.typography.titleMedium)
-                }
+                    size = KubunoButtonSize.LG,
+                )
                 Spacer(Modifier.height(14.dp))
                 Text(
                     "Vous pouvez modifier vos paramètres de sauvegarde à tout moment.",

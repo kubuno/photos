@@ -25,8 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +33,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.kubuno.android.account.SharedAccount
+import com.kubuno.android.ui.components.KubunoTextField
 
 private data class Category(val id: String, val label: String, val icon: ImageVector)
 
@@ -70,20 +69,15 @@ fun SearchScreen(
             IconButton(onClick = viewModel::closeSearch) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Fermer la recherche")
             }
-            TextField(
+            KubunoTextField(
                 value = state.query,
                 onValueChange = viewModel::onQuery,
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("Rechercher dans les photos") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                placeholder = "Rechercher dans les photos",
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Search),
-                shape = PhotosShape.Pill,
-                colors = TextFieldDefaults.colors(
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
-                ),
+                leadingIcon = {
+                    Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                },
             )
         }
 

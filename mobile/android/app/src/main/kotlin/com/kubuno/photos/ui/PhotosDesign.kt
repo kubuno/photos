@@ -29,11 +29,15 @@ object PhotosColors {
     fun petalFor(key: String): Color = Petals[(key.hashCode() and Int.MAX_VALUE) % Petals.size]
 }
 
-/** Rounded corners used across the gallery. */
+/**
+ * Corner radii. Cards and memory tiles are flattened to the web design system's
+ * 8dp (core/frontend theme --radius-xl) rather than the rounder Material look;
+ * only the floating navigation keeps its pill, which is its signature.
+ */
 object PhotosShape {
     val Pill = RoundedCornerShape(50)
-    val Card = RoundedCornerShape(20.dp)
-    val Memory = RoundedCornerShape(18.dp)
+    val Card = RoundedCornerShape(8.dp)
+    val Memory = RoundedCornerShape(8.dp)
 }
 
 /** The three pinch-zoom density levels, mirroring the reference gallery. */

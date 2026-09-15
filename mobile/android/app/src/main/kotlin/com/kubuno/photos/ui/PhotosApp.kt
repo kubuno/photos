@@ -51,7 +51,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -71,6 +70,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kubuno.android.account.SharedAccount
+import com.kubuno.android.ui.components.KubunoButton
+import com.kubuno.android.ui.components.KubunoButtonVariant
+import com.kubuno.android.ui.components.KubunoTextField
 import com.kubuno.photos.net.AlbumDto
 
 @Composable
@@ -664,11 +666,11 @@ private fun RenameAlbumDialog(current: String, onRename: (String) -> Unit, onDis
         onDismissRequest = onDismiss,
         title = { Text("Renommer l'album") },
         text = {
-            OutlinedTextField(
+            KubunoTextField(
                 value = name,
                 onValueChange = { name = it },
-                singleLine = true,
-                placeholder = { Text("Nom de l'album") },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = "Nom de l'album",
             )
         },
         confirmButton = {
@@ -707,13 +709,12 @@ private fun AddToAlbumSheet(
             )
             var newName by remember { mutableStateOf("") }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
+                KubunoTextField(
                     value = newName,
                     onValueChange = { newName = it },
                     modifier = Modifier.weight(1f),
-                    singleLine = true,
                     enabled = !busy,
-                    placeholder = { Text("Nouvel album") },
+                    placeholder = "Nouvel album",
                 )
                 IconButton(
                     onClick = { if (newName.isNotBlank()) onCreate(newName) },
@@ -823,14 +824,13 @@ private fun EmptyState(message: String, onRetry: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(32.dp),
         ) {
-            Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.size(12.dp))
             Text(
-                "Réessayer",
-                color = PhotosColors.Blue,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.clickable(onClick = onRetry).padding(8.dp),
+                message,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
+            Spacer(Modifier.size(12.dp))
+            KubunoButton(text = "Réessayer", onClick = onRetry, variant = KubunoButtonVariant.TEXT)
         }
     }
 }
