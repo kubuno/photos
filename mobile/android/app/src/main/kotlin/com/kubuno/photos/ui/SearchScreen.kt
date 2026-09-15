@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -19,8 +20,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +32,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.kubuno.android.account.SharedAccount
+import com.kubuno.android.ui.components.KubunoChip
 import com.kubuno.android.ui.components.KubunoTextField
 
 private data class Category(val id: String, val label: String, val icon: ImageVector)
@@ -87,16 +87,19 @@ fun SearchScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(CATEGORIES, key = { it.id }) { cat ->
-                FilterChip(
-                    selected = state.activeCategory == cat.id,
+                val active = state.activeCategory == cat.id
+                KubunoChip(
+                    label = cat.label,
+                    selected = active,
                     onClick = { viewModel.selectCategory(cat.id) },
-                    label = { Text(cat.label) },
-                    leadingIcon = { Icon(cat.icon, contentDescription = null, modifier = Modifier.padding(2.dp)) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = PhotosColors.Blue.copy(alpha = 0.14f),
-                        selectedLabelColor = PhotosColors.Blue,
-                        selectedLeadingIconColor = PhotosColors.Blue,
-                    ),
+                    leadingIcon = {
+                        Icon(
+                            cat.icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
                 )
             }
         }
