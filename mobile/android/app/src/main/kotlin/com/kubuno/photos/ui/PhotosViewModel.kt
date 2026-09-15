@@ -30,6 +30,9 @@ import kotlinx.coroutines.withContext
 /** The bottom-nav destinations, mirroring the reference gallery's floating pill. */
 enum class PhotosTab { PHOTOS, COLLECTIONS, CREATE }
 
+/** One picked/captured item ready to upload: its bytes, mime type and file name. */
+data class UploadItem(val bytes: ByteArray, val mime: String, val name: String)
+
 /** One date-headed run of photos in the grid (reverse-chronological). */
 data class PhotoSection(
     val key: String,
@@ -194,6 +197,32 @@ class PhotosViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * Uploads several picked photos/videos in one go (device import), refreshing
+     * once at the end. Bytes are read by the caller, which has the Context.
+     */
+    fun uploadBatch(items: List<UploadItem>) {
+        val api = api ?: return
+        if (items.isEmpty()) return
+        _state.value = _state.value.copy(uploading = true, tab = PhotosTab.PHOTOS)
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                items.count { item ->
+                    runCatching {
+                        val body = item.bytes.toRequestBody(item.mime.toMediaTypeOrNull())
+                        api.upload(MultipartBody.Part.createFormData("photo", item.name, body))
+                    }.isSuccess
+                }
+            }
+            val msg = if (ok == items.size) "$ok ajouté${plural(ok)} à la photothèque"
+            else "$ok/${items.size} ajouté${plural(ok)}"
+            _state.value = _state.value.copy(uploading = false, message = msg)
+            refresh()
+        }
+    }
+
+    private fun plural(n: Int) = if (n > 1) "s" else ""
 
     fun clearMessage() {
         _state.value = _state.value.copy(message = null)

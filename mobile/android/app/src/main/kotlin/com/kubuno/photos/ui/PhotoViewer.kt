@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -20,10 +21,19 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.automirrored.outlined.Notes
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -75,26 +85,32 @@ fun PhotoViewer(
     )
     val current = photos.getOrNull(pagerState.currentPage) ?: photos.first()
 
+    var showInfo by remember { mutableStateOf(false) }
     Box(
         Modifier
             .fillMaxSize()
             .background(Color.Black),
     ) {
-        // Vertical drag on the whole surface dismisses when pulled down far enough.
+        // Vertical drag: pull down far enough to dismiss, pull up to open the
+        // info sheet — the reference gallery's two swipe directions.
         var dragY by remember { mutableFloatStateOf(0f) }
         HorizontalPager(
             state = pagerState,
             modifier = Modifier
                 .fillMaxSize()
-                .offset { IntOffset(0, dragY.roundToInt()) }
+                // Only the downward pull moves the image; an upward pull just
+                // accumulates toward opening the sheet.
+                .offset { IntOffset(0, dragY.coerceAtLeast(0f).roundToInt()) }
                 .pointerInput(Unit) {
                     detectVerticalDragGestures(
                         onDragEnd = {
-                            if (dragY > 220f) onClose() else dragY = 0f
+                            when {
+                                dragY > 220f -> onClose()
+                                dragY < -120f -> showInfo = true
+                            }
+                            dragY = 0f
                         },
-                        onVerticalDrag = { _, delta ->
-                            dragY = (dragY + delta).coerceAtLeast(0f)
-                        },
+                        onVerticalDrag = { _, delta -> dragY += delta },
                     )
                 },
         ) { page ->
@@ -133,7 +149,7 @@ fun PhotoViewer(
                     Text(it, color = Color.White.copy(alpha = 0.8f), style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
                 }
             }
-            IconButton(onClick = { /* info sheet lands in a later milestone */ }) {
+            IconButton(onClick = { showInfo = true }) {
                 Icon(Icons.Outlined.Info, contentDescription = "Informations", tint = Color.White)
             }
         }
@@ -156,7 +172,91 @@ fun PhotoViewer(
             ) { onToggleStar(current.id) }
             ViewerAction(Icons.Filled.Delete, "Supprimer") { onDelete(current) }
         }
+
+        if (showInfo) {
+            PhotoInfoSheet(photo = current, onDismiss = { showInfo = false })
+        }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PhotoInfoSheet(photo: PhotoDto, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+        ) {
+            Text(
+                "Détails",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            InfoRow(Icons.Outlined.CalendarMonth, glanceDate(photo), glanceTime(photo))
+            InfoRow(
+                Icons.Outlined.Image,
+                photo.originalName ?: photo.filename ?: "Sans nom",
+                detailsLine(photo),
+            )
+            cameraLine(photo)?.let { InfoRow(Icons.Outlined.PhotoCamera, it, null) }
+            if (photo.gpsLat != null && photo.gpsLon != null) {
+                InfoRow(
+                    Icons.Outlined.Place,
+                    "Lieu",
+                    "%.5f, %.5f".format(java.util.Locale.US, photo.gpsLat, photo.gpsLon),
+                )
+            }
+            photo.description?.takeIf { it.isNotBlank() }?.let {
+                InfoRow(Icons.AutoMirrored.Outlined.Notes, "Description", it)
+            }
+        }
+    }
+}
+
+@Composable
+private fun InfoRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String?) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp),
+        )
+        Column(Modifier.padding(start = 18.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            subtitle?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/** "1653 × 2122 · 6,1 Mo · PNG" — whichever parts are known. */
+private fun detailsLine(photo: PhotoDto): String? {
+    val parts = buildList {
+        if (photo.width != null && photo.height != null) add("${photo.width} × ${photo.height}")
+        if (photo.sizeBytes > 0) add(formatSize(photo.sizeBytes))
+        photo.mimeType?.substringAfter('/')?.uppercase()?.let { add(it) }
+    }
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+}
+
+private fun cameraLine(photo: PhotoDto): String? {
+    val text = listOfNotNull(photo.cameraMake, photo.cameraModel).joinToString(" ").trim()
+    return text.ifBlank { null }
+}
+
+private fun formatSize(bytes: Long): String = when {
+    bytes >= 1_000_000 -> String.format(java.util.Locale.FRENCH, "%.1f Mo", bytes / 1_000_000.0)
+    else -> String.format(java.util.Locale.FRENCH, "%d Ko", bytes / 1000)
 }
 
 @Composable

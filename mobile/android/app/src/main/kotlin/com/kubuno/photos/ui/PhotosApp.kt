@@ -2,6 +2,7 @@ package com.kubuno.photos.ui
 
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddCircleOutline
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -94,6 +96,24 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
         launch(captureUri(context, file))
     }
 
+    // Import existing photos/videos from the device via the system photo picker
+    // (no storage permission). Their bytes are read and uploaded as a batch.
+    val importMedia = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(10),
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            val items = uris.mapNotNull { uri ->
+                val bytes = runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                }.getOrNull() ?: return@mapNotNull null
+                val name = displayName(context, uri) ?: "import_${System.currentTimeMillis()}"
+                val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                UploadItem(bytes, mime, name)
+            }
+            viewModel.uploadBatch(items)
+        }
+    }
+
     // Toasts for upload outcome.
     LaunchedEffect(state.message) {
         state.message?.let {
@@ -131,6 +151,11 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
             PhotosTab.CREATE -> CreateTabContent(
                 onTakePhoto = { capture("jpg") { takePhoto.launch(it) } },
                 onTakeVideo = { capture("mp4") { takeVideo.launch(it) } },
+                onImport = {
+                    importMedia.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo),
+                    )
+                },
             )
         }
 
@@ -191,6 +216,15 @@ private fun captureUri(context: android.content.Context, file: java.io.File): an
         "${context.packageName}.fileprovider",
         file,
     )
+
+/** The display name of a picked content URI, for the uploaded file name. */
+private fun displayName(context: android.content.Context, uri: android.net.Uri): String? =
+    runCatching {
+        context.contentResolver.query(uri, null, null, null, null)?.use { c ->
+            val idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (idx >= 0 && c.moveToFirst()) c.getString(idx) else null
+        }
+    }.getOrNull()
 
 @Composable
 private fun PhotosTabContent(
@@ -418,7 +452,11 @@ private fun AlbumCard(album: AlbumDto) {
 }
 
 @Composable
-private fun CreateTabContent(onTakePhoto: () -> Unit, onTakeVideo: () -> Unit) {
+private fun CreateTabContent(
+    onTakePhoto: () -> Unit,
+    onTakeVideo: () -> Unit,
+    onImport: () -> Unit,
+) {
     Column(
         Modifier
             .fillMaxSize()
@@ -441,6 +479,12 @@ private fun CreateTabContent(onTakePhoto: () -> Unit, onTakeVideo: () -> Unit) {
             title = "Filmer une vidéo",
             subtitle = "Enregistrer et ajouter à la photothèque",
             onClick = onTakeVideo,
+        )
+        CreateAction(
+            icon = Icons.Filled.AddPhotoAlternate,
+            title = "Importer depuis l'appareil",
+            subtitle = "Choisir des photos ou vidéos existantes",
+            onClick = onImport,
         )
     }
 }
