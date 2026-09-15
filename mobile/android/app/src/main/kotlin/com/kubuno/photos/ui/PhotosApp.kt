@@ -84,6 +84,12 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
     }
     if (account == null) return
 
+    // First-run welcome: shown until validated, then never again.
+    if (!state.onboardingDone) {
+        OnboardingScreen(account = account, onStart = viewModel::completeOnboarding)
+        return
+    }
+
     // Camera capture → upload. We create the output file ourselves (cacheDir),
     // hand the camera app a FileProvider URI to write into, then read the bytes
     // back and upload them. No CAMERA permission: the system camera app owns it.

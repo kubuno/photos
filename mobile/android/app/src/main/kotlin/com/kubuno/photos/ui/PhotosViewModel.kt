@@ -51,6 +51,8 @@ data class PhotoSection(
 data class PhotosUiState(
     val account: SharedAccount? = null,
     val ready: Boolean = false,
+    /** False until the first-run welcome screen has been validated. */
+    val onboardingDone: Boolean = false,
     val loading: Boolean = false,
     val error: String? = null,
     val photos: List<PhotoDto> = emptyList(),
@@ -111,7 +113,13 @@ class PhotosViewModel @Inject constructor(
     /** The shared Kubuno accounts on this device; photos is a pure consumer. */
     private val accounts: List<SharedAccount> = sharedAccounts.list()
 
-    private val _state = MutableStateFlow(PhotosUiState(ready = false))
+    // Per-app preferences: whether the first-run screen has been validated, and
+    // the auto-backup choice it offered.
+    private val prefs = appContext.getSharedPreferences("photos", Context.MODE_PRIVATE)
+
+    private val _state = MutableStateFlow(
+        PhotosUiState(ready = false, onboardingDone = prefs.getBoolean(KEY_ONBOARDING_DONE, false)),
+    )
     val state: StateFlow<PhotosUiState> = _state.asStateFlow()
 
     private val api: PhotosApi? get() = _state.value.account?.let(clients::api)
@@ -170,6 +178,19 @@ class PhotosViewModel @Inject constructor(
 
     fun selectTab(tab: PhotosTab) {
         _state.value = _state.value.copy(tab = tab)
+    }
+
+    /**
+     * Validates the first-run welcome screen. Until this is called, the screen
+     * is shown again on every launch. [autoBackup] records the device-backup
+     * choice the screen offered.
+     */
+    fun completeOnboarding(autoBackup: Boolean) {
+        prefs.edit()
+            .putBoolean(KEY_ONBOARDING_DONE, true)
+            .putBoolean(KEY_AUTO_BACKUP, autoBackup)
+            .apply()
+        _state.value = _state.value.copy(onboardingDone = true)
     }
 
     /** Pinch zoom in the grid re-columns and, at month level, re-groups by month. */
@@ -683,6 +704,8 @@ class PhotosViewModel @Inject constructor(
     }
 
     private companion object {
+        const val KEY_ONBOARDING_DONE = "onboarding_done"
+        const val KEY_AUTO_BACKUP = "auto_backup"
         val ZONE: ZoneId = ZoneId.systemDefault()
         val DAY_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRENCH)
         val MONTH_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.FRENCH)
