@@ -48,7 +48,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -71,6 +70,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kubuno.android.account.SharedAccount
 import com.kubuno.android.ui.components.KubunoButton
+import com.kubuno.android.ui.components.KubunoProgressBar
 import com.kubuno.android.ui.components.KubunoButtonVariant
 import com.kubuno.android.ui.components.KubunoTextField
 import com.kubuno.photos.net.AlbumDto
@@ -724,7 +724,11 @@ private fun AddToAlbumSheet(
                 }
             }
             if (busy) {
-                LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+                KubunoProgressBar(
+                    progress = null,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    showValue = false,
+                )
             }
             albums.forEach { album ->
                 Row(

@@ -16,8 +16,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,6 +36,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.kubuno.android.account.SharedAccount
 import com.kubuno.android.ui.components.KubunoButton
+import com.kubuno.android.ui.components.KubunoToggle
 import com.kubuno.android.ui.components.KubunoButtonSize
 
 /**
@@ -57,7 +56,8 @@ fun OnboardingScreen(account: SharedAccount, onStart: (autoBackup: Boolean) -> U
         contentAlignment = Alignment.Center,
     ) {
         Surface(
-            shape = RoundedCornerShape(28.dp),
+            // The web card radius (--radius-xl, 8px), not a Material-round card.
+            shape = RoundedCornerShape(8.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 2.dp,
             shadowElevation = 2.dp,
@@ -104,14 +104,7 @@ fun OnboardingScreen(account: SharedAccount, onStart: (autoBackup: Boolean) -> U
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f),
                     )
-                    Switch(
-                        checked = autoBackup,
-                        onCheckedChange = { autoBackup = it },
-                        colors = SwitchDefaults.colors(
-                            checkedTrackColor = PhotosColors.Blue,
-                            checkedThumbColor = Color.White,
-                        ),
-                    )
+                    KubunoToggle(checked = autoBackup, onCheckedChange = { autoBackup = it })
                 }
                 Spacer(Modifier.height(28.dp))
                 KubunoButton(
