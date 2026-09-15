@@ -1,10 +1,13 @@
 package com.kubuno.photos.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +21,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -40,8 +44,10 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -57,7 +63,11 @@ import com.kubuno.photos.net.PhotoDto
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.cos
+import kotlin.math.floor
+import kotlin.math.ln
 import kotlin.math.roundToInt
+import kotlin.math.tan
 
 /**
  * Full-screen photo viewer — a horizontal pager over the whole roll, a glanceable
@@ -208,6 +218,7 @@ private fun PhotoInfoSheet(photo: PhotoDto, onDismiss: () -> Unit) {
                     "Lieu",
                     "%.5f, %.5f".format(java.util.Locale.US, photo.gpsLat, photo.gpsLon),
                 )
+                MiniMap(photo.gpsLat, photo.gpsLon)
             }
             photo.description?.takeIf { it.isNotBlank() }?.let {
                 InfoRow(Icons.AutoMirrored.Outlined.Notes, "Description", it)
@@ -266,6 +277,63 @@ private fun ViewerAction(icon: androidx.compose.ui.graphics.vector.ImageVector, 
             Icon(icon, contentDescription = label, tint = Color.White)
         }
         Text(label, color = Color.White, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
+    }
+}
+
+/**
+ * A small static map centred on the photo's GPS point, with a pin. Uses keyless
+ * ESRI raster tiles (no user-agent restrictions, unlike the OSM tile server) and
+ * places the pin at the point's fractional position inside the tile. Tapping
+ * opens the location in a maps app via a standard geo: link.
+ */
+@Composable
+private fun MiniMap(lat: Double, lon: Double) {
+    val context = LocalContext.current
+    val z = 14
+    val n = (1 shl z).toDouble()
+    val latRad = Math.toRadians(lat)
+    val xf = (lon + 180.0) / 360.0 * n
+    val yf = (1.0 - ln(tan(latRad) + 1.0 / cos(latRad)) / Math.PI) / 2.0 * n
+    val xTile = floor(xf).toInt()
+    val yTile = floor(yf).toInt()
+    val fx = (xf - xTile).toFloat()
+    val fy = (yf - yTile).toFloat()
+    // ESRI tiles are addressed {z}/{y}/{x}.
+    val url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/$z/$yTile/$xTile"
+    val pin = 30.dp
+    BoxWithConstraints(
+        Modifier
+            .padding(vertical = 8.dp)
+            .fillMaxWidth()
+            .height(160.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable {
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("geo:$lat,$lon?q=$lat,$lon"),
+                        ),
+                    )
+                }
+            },
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(context).data(url).crossfade(true).build(),
+            contentDescription = "Carte du lieu",
+            contentScale = ContentScale.FillBounds,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Icon(
+            Icons.Filled.Place,
+            contentDescription = null,
+            tint = PhotosColors.PetalRed,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                // Anchor the pin tip (bottom-centre) on the point.
+                .offset(x = maxWidth * fx - pin / 2f, y = maxHeight * fy - pin)
+                .size(pin),
+        )
     }
 }
 

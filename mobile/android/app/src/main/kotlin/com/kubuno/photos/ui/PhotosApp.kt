@@ -32,15 +32,19 @@ import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LibraryAdd
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Collections
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -148,6 +152,21 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
         viewModel.shareConsumed()
     }
 
+    // The same, for several files at once.
+    LaunchedEffect(state.shareMulti) {
+        val ready = state.shareMulti ?: return@LaunchedEffect
+        val uris = ArrayList(ready.files.map { file ->
+            androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        })
+        val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = ready.mime
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "Partager"))
+        viewModel.shareMultiConsumed()
+    }
+
     // The full-screen viewer takes over everything when a photo is open. It
     // pages over whichever list it was opened from (main roll, search, album).
     val viewerIndex = state.viewerIndex
@@ -191,6 +210,7 @@ fun PhotosApp(viewModel: PhotosViewModel = hiltViewModel()) {
             SelectionBar(
                 count = state.selected.size,
                 onClose = viewModel::clearSelection,
+                onShare = viewModel::shareSelection,
                 onAddToAlbum = viewModel::promptAddToAlbum,
                 onDelete = viewModel::trashSelection,
                 modifier = Modifier.align(Alignment.TopCenter),
@@ -334,6 +354,7 @@ private fun TopBar(account: SharedAccount, modifier: Modifier = Modifier) {
 private fun SelectionBar(
     count: Int,
     onClose: () -> Unit,
+    onShare: () -> Unit,
     onAddToAlbum: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
@@ -359,6 +380,9 @@ private fun SelectionBar(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
+            IconButton(onClick = onShare) {
+                Icon(Icons.Filled.Share, contentDescription = "Partager")
+            }
             IconButton(onClick = onAddToAlbum) {
                 Icon(Icons.Filled.LibraryAdd, contentDescription = "Ajouter à un album")
             }
@@ -569,8 +593,24 @@ private fun AlbumScreen(
                     album.name,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(start = 4.dp),
+                    modifier = Modifier.weight(1f).padding(start = 4.dp),
                 )
+                var menuOpen by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "Options de l'album")
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Renommer") },
+                            onClick = { menuOpen = false; viewModel.promptRenameAlbum() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Supprimer l'album") },
+                            onClick = { menuOpen = false; viewModel.deleteOpenAlbum() },
+                        )
+                    }
+                }
             }
         }
         Box(Modifier.fillMaxSize()) {
@@ -600,6 +640,40 @@ private fun AlbumScreen(
             }
         }
     }
+
+    if (state.renamingAlbum) {
+        RenameAlbumDialog(
+            current = album.name,
+            onRename = viewModel::renameAlbum,
+            onDismiss = viewModel::dismissRenameAlbum,
+        )
+    }
+}
+
+@Composable
+private fun RenameAlbumDialog(current: String, onRename: (String) -> Unit, onDismiss: () -> Unit) {
+    var name by remember { mutableStateOf(current) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Renommer l'album") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                placeholder = { Text("Nom de l'album") },
+            )
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                onClick = { if (name.isNotBlank()) onRename(name) },
+                enabled = name.isNotBlank(),
+            ) { Text("Renommer") }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Annuler") }
+        },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

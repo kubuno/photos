@@ -78,6 +78,10 @@ data class PhotosUiState(
     val searchSections: List<PhotoSection> = emptyList(),
     /** A downloaded file ready to hand to the system share sheet (one-shot). */
     val shareReady: ShareReady? = null,
+    /** Several downloaded files ready to share at once (one-shot). */
+    val shareMulti: ShareMulti? = null,
+    /** Whether the rename-album dialog is showing. */
+    val renamingAlbum: Boolean = false,
     // ── Albums ───────────────────────────────────────────────────────────────
     /** The album currently open full-screen, or null. */
     val openAlbum: AlbumDto? = null,
@@ -93,6 +97,9 @@ data class PhotosUiState(
 
 /** A file downloaded for sharing, with the mime type to tag the share intent. */
 data class ShareReady(val file: java.io.File, val mime: String)
+
+/** Several files downloaded for a single multi-share, with a common mime type. */
+data class ShareMulti(val files: List<java.io.File>, val mime: String)
 
 @HiltViewModel
 class PhotosViewModel @Inject constructor(
@@ -342,32 +349,56 @@ class PhotosViewModel @Inject constructor(
         val api = api ?: return
         _state.value = _state.value.copy(message = "Préparation du partage…")
         viewModelScope.launch {
-            val result = runCatching {
-                withContext(Dispatchers.IO) {
-                    val dir = java.io.File(appContext.cacheDir, "shared").apply { mkdirs() }
-                    // A clean, human file name for the share target.
-                    val name = (photo.originalName ?: photo.filename ?: "photo")
-                        .replace(Regex("[\\\\/:*?\"<>|]"), "_")
-                    val file = java.io.File(dir, name)
-                    api.download(photo.id).byteStream().use { input ->
-                        file.outputStream().use { input.copyTo(it) }
-                    }
-                    file
-                }
-            }
-            result.onSuccess { file ->
-                _state.value = _state.value.copy(
-                    message = null,
-                    shareReady = ShareReady(file, photo.mimeType ?: "*/*"),
-                )
-            }.onFailure {
-                _state.value = _state.value.copy(message = "Partage impossible")
+            val file = runCatching { withContext(Dispatchers.IO) { downloadToShared(api, photo) } }.getOrNull()
+            _state.value = if (file != null) {
+                _state.value.copy(message = null, shareReady = ShareReady(file, photo.mimeType ?: "*/*"))
+            } else {
+                _state.value.copy(message = "Partage impossible")
             }
         }
     }
 
+    /** Downloads and shares the current selection at once (ACTION_SEND_MULTIPLE). */
+    fun shareSelection() {
+        val api = api ?: return
+        val chosen = _state.value.photos.filter { it.id in _state.value.selected }
+        if (chosen.isEmpty()) return
+        _state.value = _state.value.copy(message = "Préparation du partage…")
+        viewModelScope.launch {
+            val files = withContext(Dispatchers.IO) {
+                chosen.mapNotNull { photo -> runCatching { downloadToShared(api, photo) }.getOrNull() }
+            }
+            _state.value = if (files.isNotEmpty()) {
+                _state.value.copy(message = null, selected = emptySet(), shareMulti = ShareMulti(files, commonMime(chosen)))
+            } else {
+                _state.value.copy(message = "Partage impossible")
+            }
+        }
+    }
+
+    private suspend fun downloadToShared(api: PhotosApi, photo: PhotoDto): java.io.File {
+        val dir = java.io.File(appContext.cacheDir, "shared").apply { mkdirs() }
+        // A clean, human file name for the share target.
+        val name = (photo.originalName ?: photo.filename ?: "photo_${photo.id}")
+            .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+        val file = java.io.File(dir, name)
+        api.download(photo.id).byteStream().use { input -> file.outputStream().use { input.copyTo(it) } }
+        return file
+    }
+
+    // A shared type for the multi-share: images-only, videos-only, or mixed.
+    private fun commonMime(photos: List<PhotoDto>): String = when {
+        photos.all { it.mimeType?.startsWith("image/") == true } -> "image/*"
+        photos.all { it.isVideo } -> "video/*"
+        else -> "*/*"
+    }
+
     fun shareConsumed() {
         _state.value = _state.value.copy(shareReady = null)
+    }
+
+    fun shareMultiConsumed() {
+        _state.value = _state.value.copy(shareMulti = null)
     }
 
     fun clearMessage() {
@@ -453,6 +484,43 @@ class PhotosViewModel @Inject constructor(
             }.isSuccess
             loadAlbums()
             _state.value = _state.value.copy(message = if (ok) "Couverture définie" else "Échec")
+        }
+    }
+
+    fun promptRenameAlbum() {
+        _state.value = _state.value.copy(renamingAlbum = true)
+    }
+
+    fun dismissRenameAlbum() {
+        _state.value = _state.value.copy(renamingAlbum = false)
+    }
+
+    fun renameAlbum(name: String) {
+        val album = _state.value.openAlbum ?: return
+        val api = api ?: return
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        // Optimistic: the header updates immediately.
+        _state.value = _state.value.copy(renamingAlbum = false, openAlbum = album.copy(name = trimmed))
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { api.updateAlbum(album.id, UpdateAlbumBody(name = trimmed)) } }
+            loadAlbums()
+        }
+    }
+
+    fun deleteOpenAlbum() {
+        val album = _state.value.openAlbum ?: return
+        val api = api ?: return
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { api.deleteAlbum(album.id) } }
+            loadAlbums()
+            _state.value = _state.value.copy(
+                openAlbum = null,
+                albumPhotos = emptyList(),
+                albumSections = emptyList(),
+                albumSelected = emptySet(),
+                message = "Album supprimé",
+            )
         }
     }
 
