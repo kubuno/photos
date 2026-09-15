@@ -34,8 +34,10 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Collections
 import androidx.compose.material3.CircularProgressIndicator
@@ -526,25 +528,50 @@ private fun AlbumScreen(
     state: PhotosUiState,
     viewModel: PhotosViewModel,
 ) {
+    val selectionMode = state.albumSelected.isNotEmpty()
     Column(
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
             .statusBarsPadding(),
     ) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = viewModel::closeAlbum) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
+        if (selectionMode) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = viewModel::clearAlbumSelection) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Annuler")
+                }
+                Text(
+                    "${state.albumSelected.size} sélectionné${if (state.albumSelected.size > 1) "s" else ""}",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (state.albumSelected.size == 1) {
+                    IconButton(onClick = { viewModel.setAlbumCover(state.albumSelected.first()) }) {
+                        Icon(Icons.Filled.Wallpaper, contentDescription = "Définir comme couverture")
+                    }
+                }
+                IconButton(onClick = viewModel::removeSelectedFromAlbum) {
+                    Icon(Icons.Filled.RemoveCircleOutline, contentDescription = "Retirer de l'album")
+                }
             }
-            Text(
-                album.name,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(start = 4.dp),
-            )
+        } else {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = viewModel::closeAlbum) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
+                }
+                Text(
+                    album.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 4.dp),
+                )
+            }
         }
         Box(Modifier.fillMaxSize()) {
             when {
@@ -562,12 +589,12 @@ private fun AlbumScreen(
                     account = account,
                     sections = state.albumSections,
                     density = GridDensity.DAY,
-                    selected = emptySet(),
-                    selectionMode = false,
+                    selected = state.albumSelected,
+                    selectionMode = selectionMode,
                     contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp, start = 2.dp, end = 2.dp),
                     onOpen = { viewModel.openAlbumViewer(it.id) },
-                    onToggleSelect = {},
-                    onToggleSection = {},
+                    onToggleSelect = viewModel::toggleAlbumSelect,
+                    onToggleSection = viewModel::toggleAlbumSection,
                     onDensity = {},
                 )
             }

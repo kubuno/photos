@@ -85,6 +85,14 @@ data class AddPhotosBody(
     @SerialName("photo_ids") val photoIds: List<String>,
 )
 
+/** Body for `PATCH /albums/:id` — only the fields the app edits. */
+@Serializable
+data class UpdateAlbumBody(
+    val name: String? = null,
+    val description: String? = null,
+    @SerialName("cover_photo_id") val coverPhotoId: String? = null,
+)
+
 /** `POST /albums/:id/photos` returns `{ "added": n }`. */
 @Serializable
 data class AddedResponse(

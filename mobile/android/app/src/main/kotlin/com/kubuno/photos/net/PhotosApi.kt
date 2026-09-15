@@ -68,4 +68,10 @@ interface PhotosApi {
 
     @POST("api/v1/photos/albums/{id}/photos")
     suspend fun addToAlbum(@Path("id") id: String, @Body body: AddPhotosBody): AddedResponse
+
+    @PATCH("api/v1/photos/albums/{id}")
+    suspend fun updateAlbum(@Path("id") id: String, @Body body: UpdateAlbumBody): AlbumResponse
+
+    @DELETE("api/v1/photos/albums/{id}/photos/{pid}")
+    suspend fun removeFromAlbum(@Path("id") id: String, @Path("pid") pid: String)
 }

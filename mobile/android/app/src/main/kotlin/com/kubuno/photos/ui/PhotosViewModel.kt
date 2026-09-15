@@ -10,6 +10,7 @@ import com.kubuno.photos.net.AddPhotosBody
 import com.kubuno.photos.net.AlbumDto
 import com.kubuno.photos.net.CreateAlbumBody
 import com.kubuno.photos.net.PatchPhotoBody
+import com.kubuno.photos.net.UpdateAlbumBody
 import com.kubuno.photos.net.PhotoDto
 import com.kubuno.photos.net.PhotosApi
 import com.kubuno.photos.net.PhotosClients
@@ -83,6 +84,8 @@ data class PhotosUiState(
     val albumLoading: Boolean = false,
     val albumPhotos: List<PhotoDto> = emptyList(),
     val albumSections: List<PhotoSection> = emptyList(),
+    /** Selection within the open album (its own mode, separate from the main grid). */
+    val albumSelected: Set<String> = emptySet(),
     /** Whether the "add selection to an album" sheet is showing. */
     val showAddToAlbum: Boolean = false,
     val addingToAlbum: Boolean = false,
@@ -395,7 +398,62 @@ class PhotosViewModel @Inject constructor(
     }
 
     fun closeAlbum() {
-        _state.value = _state.value.copy(openAlbum = null, albumPhotos = emptyList(), albumSections = emptyList())
+        _state.value = _state.value.copy(
+            openAlbum = null,
+            albumPhotos = emptyList(),
+            albumSections = emptyList(),
+            albumSelected = emptySet(),
+        )
+    }
+
+    // Selection inside an open album (curation: remove, set cover).
+    fun toggleAlbumSelect(id: String) {
+        val cur = _state.value.albumSelected
+        _state.value = _state.value.copy(albumSelected = if (id in cur) cur - id else cur + id)
+    }
+
+    fun toggleAlbumSection(section: PhotoSection) {
+        val ids = section.photos.map { it.id }.toSet()
+        val cur = _state.value.albumSelected
+        _state.value = _state.value.copy(
+            albumSelected = if (cur.containsAll(ids)) cur - ids else cur + ids,
+        )
+    }
+
+    fun clearAlbumSelection() {
+        _state.value = _state.value.copy(albumSelected = emptySet())
+    }
+
+    /** Removes the album's selected photos from the album (not from the library). */
+    fun removeSelectedFromAlbum() {
+        val album = _state.value.openAlbum ?: return
+        val api = api ?: return
+        val ids = _state.value.albumSelected.toList()
+        if (ids.isEmpty()) return
+        val remaining = _state.value.albumPhotos.filterNot { it.id in ids }
+        _state.value = _state.value.copy(
+            albumPhotos = remaining,
+            albumSections = sectionsOf(remaining, GridDensity.DAY),
+            albumSelected = emptySet(),
+        )
+        viewModelScope.launch {
+            ids.forEach { pid -> runCatching { withContext(Dispatchers.IO) { api.removeFromAlbum(album.id, pid) } } }
+            loadAlbums()
+        }
+    }
+
+    /** Sets the album cover to the single selected photo. */
+    fun setAlbumCover(photoId: String) {
+        val album = _state.value.openAlbum ?: return
+        val api = api ?: return
+        _state.value = _state.value.copy(albumSelected = emptySet())
+        viewModelScope.launch {
+            val ok = runCatching {
+                withContext(Dispatchers.IO) { api.updateAlbum(album.id, UpdateAlbumBody(coverPhotoId = photoId)) }
+            }.isSuccess
+            loadAlbums()
+            _state.value = _state.value.copy(message = if (ok) "Couverture définie" else "Échec")
+        }
     }
 
     /** Opens the "add the current selection to an album" sheet. */
@@ -431,7 +489,12 @@ class PhotosViewModel @Inject constructor(
             val added = runCatching {
                 withContext(Dispatchers.IO) {
                     val album = api.createAlbum(CreateAlbumBody(trimmed)).album
-                    if (ids.isNotEmpty()) api.addToAlbum(album.id, AddPhotosBody(ids)).added else 0
+                    if (ids.isNotEmpty()) {
+                        val count = api.addToAlbum(album.id, AddPhotosBody(ids)).added
+                        // Give the new album a cover so it isn't blank in the grid.
+                        runCatching { api.updateAlbum(album.id, UpdateAlbumBody(coverPhotoId = ids.first())) }
+                        count
+                    } else 0
                 }
             }.getOrNull()
             finishAddToAlbum(added)
