@@ -1,10 +1,10 @@
+import { SidebarNavItem } from '@kubuno/sdk'
 import { useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Image, BookImage, Heart, Trash2, Clock,
   Archive, Video, MapPin, FileText, Camera,
 } from 'lucide-react'
-import { SidebarNavItem } from '@kubuno/sdk'
 
 const NAV_ITEMS = [
   { tk: 'nav_explore',   label: 'Explorer',                   icon: <Image className="w-4 h-4 flex-shrink-0" />,     path: '/photos' },

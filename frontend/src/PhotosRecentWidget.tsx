@@ -1,8 +1,8 @@
+import { DashboardWidget } from '@kubuno/sdk'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Image } from 'lucide-react'
 import { photosApi } from './api'
-import { DashboardWidget } from '@kubuno/sdk'
 
 export default function PhotosRecentWidget() {
   const { t } = useTranslation('photos')

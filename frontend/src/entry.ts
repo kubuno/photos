@@ -1,3 +1,4 @@
+import { RouteRegistry, SlotRegistry, ExtensionRegistry, ModuleSettingsRegistry, WidgetRegistry, WaffleAppRegistry, useSidebarStore, useToolbarStore, SDK_VERSION, ImageSourceRegistry } from '@kubuno/sdk'
 /**
  * Point d'entrée du bundle MODULE photos (galerie), chargé à l'exécution.
  * Buildé séparément via `vite.module.config.ts` ; specifiers partagés résolus au
@@ -5,18 +6,6 @@
  * `register()` ; `sdkVersion` permet de rejeter une incompatibilité de contrat.
  */
 import { createElement, lazy } from 'react'
-import {
-  RouteRegistry,
-  SlotRegistry,
-  ExtensionRegistry,
-  ModuleSettingsRegistry,
-  WidgetRegistry,
-  WaffleAppRegistry,
-  useSidebarStore,
-  useToolbarStore,
-  SDK_VERSION,
-  ImageSourceRegistry,
-} from '@kubuno/sdk'
 import { Image } from 'lucide-react'
 import PhotosImageSource from './PhotosImageSource'
 import './index.css'

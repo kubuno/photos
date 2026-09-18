@@ -1,5 +1,5 @@
-import type { MenuItem } from '@ui'
 import { i18n } from '@kubuno/sdk'
+import type { MenuItem } from '@ui'
 import { Image, FolderPlus } from 'lucide-react'
 import { usePhotosStore } from './store'
 

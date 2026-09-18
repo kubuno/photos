@@ -1,9 +1,9 @@
+import { useConfirm, useAuthStore, api, bumpImageCache, useImageCacheStore, formatDate } from '@kubuno/sdk'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { isCoarsePointer } from './openable'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useConfirm } from '@kubuno/sdk'
 import { ConfirmDialog } from '@ui'
 import {
   Image, Heart, Trash2, Download,
@@ -11,17 +11,12 @@ import {
   Loader2, Upload, Pencil, Play,
 } from 'lucide-react'
 import { photosApi, type Photo, type Album } from './api'
-import { useAuthStore } from '@kubuno/sdk'
 import { Button, Input } from '@ui'
 
 // Cache de blob URLs pour les previews vidéo — évite de re-fetcher à chaque hover
 const videoPreviewCache = new Map<string, string>()
 import { usePhotosStore } from './store'
-import { format } from 'date-fns'
-import { getDateLocale } from '@kubuno/sdk'
 import PhotoEditor, { type TransformState } from './PhotoEditor'
-import { api } from '@kubuno/sdk'
-import { bumpImageCache, useImageCacheStore } from '@kubuno/sdk'
 
 // ── Types de vue ──────────────────────────────────────────────────────────────
 type ViewMode = 'timeline' | 'albums' | 'starred' | 'trash'
@@ -277,7 +272,7 @@ function PhotosLightbox({
           <div className="flex items-center gap-2 flex-shrink-0">
             {photo.taken_at && (
               <span className="text-sm opacity-50 hidden sm:block">
-                {format(new Date(photo.taken_at), 'dd MMM yyyy', { locale: getDateLocale(i18n.language) })}
+                {formatDate(new Date(photo.taken_at), 'date')}
               </span>
             )}
             <button
@@ -571,7 +566,7 @@ export default function PhotosApp({ starred, trashed, albumsView }: PhotosAppPro
   const currentView: ViewMode = isAlbums ? 'albums' : isStarred ? 'starred' : isTrashed ? 'trash' : 'timeline'
 
   const photosByMonth = photos.reduce<Record<string, Photo[]>>((acc, photo) => {
-    const key = format(new Date(photo.taken_at ?? photo.created_at), 'MMMM yyyy', { locale: getDateLocale(i18n.language) })
+    const key = formatDate(new Date(photo.taken_at ?? photo.created_at), 'monthYear')
     if (!acc[key]) acc[key] = []
     acc[key].push(photo)
     return acc
