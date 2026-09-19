@@ -220,7 +220,9 @@ fn entries_for(user_id: Uuid, t: &Totals) -> Vec<Entry> {
 /// filled back in at zero — see [`entries_for`].
 async fn totals_for(db: &PgPool, owners: &[Uuid]) -> Result<Vec<Entry>, sqlx::Error> {
     let sql = format!("{TOTALS_SELECT} WHERE owner_id = ANY($1) GROUP BY owner_id");
-    let rows: Vec<TotalsRow> = sqlx::query_as(&sql).bind(owners).fetch_all(db).await?;
+    // Audited: TOTALS_SELECT is a const and the clause is a literal; the owner
+    // list is bound.
+    let rows: Vec<TotalsRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql)).bind(owners).fetch_all(db).await?;
 
     let found: HashMap<Uuid, Totals> = rows.iter().map(|r| (r.0, row_to_totals(r))).collect();
     let zero = Totals {
@@ -241,7 +243,8 @@ async fn totals_for(db: &PgPool, owners: &[Uuid]) -> Result<Vec<Entry>, sqlx::Er
 /// Recounts every account photos holds anything for.
 async fn totals_all(db: &PgPool) -> Result<Vec<Entry>, sqlx::Error> {
     let sql = format!("{TOTALS_SELECT} GROUP BY owner_id");
-    let rows: Vec<TotalsRow> = sqlx::query_as(&sql).fetch_all(db).await?;
+    // Audited: same — a const SELECT plus a literal GROUP BY.
+    let rows: Vec<TotalsRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql)).fetch_all(db).await?;
 
     let mut entries: Vec<Entry> = rows
         .iter()
