@@ -94,6 +94,13 @@ const BACKFILL_BATCH: i64 = 200;
 /// ever letting the reporter turn into a storm against the object store.
 const BACKFILL_MAX_BATCHES: usize = 20;
 
+// Checked when the crate is compiled, not when a test happens to run: a zero
+// here would make the backfill a no-op for ever, and an unbounded product would
+// turn one sync into a storm of `size()` calls against the object store.
+const _: () = assert!(BACKFILL_BATCH > 0);
+const _: () = assert!(BACKFILL_MAX_BATCHES > 0);
+const _: () = assert!(BACKFILL_BATCH * BACKFILL_MAX_BATCHES as i64 <= 10_000);
+
 /// Identifier this module declares under. Only consulted by the core when the
 /// caller could not be identified from its `X-Internal-Secret`: the core prefers
 /// the secret's identity and answers 403 when the two disagree, so naming
@@ -671,14 +678,6 @@ mod tests {
         assert_eq!(chunks[1].len(), 7);
     }
 
-    /// The backfill has to stay bounded: it costs one `size()` round-trip per
-    /// derivative against a backend that may be an object store.
-    #[test]
-    fn backfill_is_bounded() {
-        assert!(BACKFILL_BATCH > 0);
-        assert!(BACKFILL_MAX_BATCHES > 0);
-        assert!(BACKFILL_BATCH * BACKFILL_MAX_BATCHES as i64 <= 10_000);
-    }
 
     /// Photos declares only its own tables — nothing it reads may belong to
     /// another module, or the same bytes would be counted twice.

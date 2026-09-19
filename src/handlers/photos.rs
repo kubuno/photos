@@ -24,7 +24,7 @@ pub async fn list(
 ) -> Result<Json<Value>> {
     let photos = photo_service::list_photos(&state.db, user.id, q)
         .await
-        .map_err(|e| PhotosError::Internal(e))?;
+        .map_err(PhotosError::Internal)?;
     Ok(Json(json!({ "photos": photos })))
 }
 
@@ -67,11 +67,13 @@ pub async fn upload(
         user.id,
         &name,
         bytes,
-        max,
-        thumb_size,
-        preview_size,
-        quality,
-        inst.accept_undecodable_formats,
+        photo_service::UploadLimits {
+            max_bytes: max,
+            thumbnail_size: thumb_size,
+            preview_size,
+            quality,
+            accept_undecodable: inst.accept_undecodable_formats,
+        },
     )
     .await
     .map_err(|e| {

@@ -101,18 +101,28 @@ pub async fn get_photo(db: &PgPool, id: Uuid, owner_id: Uuid) -> Result<Option<P
 }
 
 /// Upload et enregistre une photo.
+/// The knobs an administrator turns for uploads. They travel together —
+/// they all come from the same instance settings and are all read on the same
+/// path — so they are passed as one value rather than as five positional
+/// arguments a caller could silently transpose.
+pub struct UploadLimits {
+    pub max_bytes: u64,
+    pub thumbnail_size: u32,
+    pub preview_size: u32,
+    pub quality: u8,
+    /// Store a file the decoder cannot read rather than refusing it.
+    pub accept_undecodable: bool,
+}
+
 pub async fn upload_photo(
     db: &PgPool,
     storage: &dyn StorageBackend,
     owner_id: Uuid,
     original_name: &str,
     data: Bytes,
-    max_bytes: u64,
-    thumbnail_size: u32,
-    preview_size: u32,
-    quality: u8,
-    accept_undecodable: bool,
+    limits: UploadLimits,
 ) -> anyhow::Result<Photo> {
+    let UploadLimits { max_bytes, thumbnail_size, preview_size, quality, accept_undecodable } = limits;
     if data.len() as u64 > max_bytes {
         anyhow::bail!("FILE_TOO_LARGE");
     }
@@ -129,7 +139,7 @@ pub async fn upload_photo(
     let hash = hex::encode(Sha256::digest(&data));
 
     // Dimensions + EXIF via image crate
-    let (width, height, taken_at, camera_make, camera_model, gps_lat, gps_lon) =
+    let PhotoMetadata { width, height, taken_at, camera_make, camera_model, gps_lat, gps_lon } =
         extract_metadata(&data);
 
     let id           = Uuid::new_v4();
@@ -321,9 +331,21 @@ fn is_image_mime(mime: &str, accept_undecodable: bool) -> bool {
         || (accept_undecodable && matches!(mime, "image/heic" | "image/heif" | "image/avif"))
 }
 
-fn extract_metadata(
-    data: &Bytes,
-) -> (Option<i32>, Option<i32>, Option<DateTime<Utc>>, Option<String>, Option<String>, Option<f64>, Option<f64>) {
+/// What a photo file says about itself: its dimensions, and whatever EXIF
+/// carries. Every field is optional — a file may have no EXIF at all, or an
+/// unreadable one, and that is not an error.
+#[derive(Debug, Default)]
+struct PhotoMetadata {
+    width:        Option<i32>,
+    height:       Option<i32>,
+    taken_at:     Option<DateTime<Utc>>,
+    camera_make:  Option<String>,
+    camera_model: Option<String>,
+    gps_lat:      Option<f64>,
+    gps_lon:      Option<f64>,
+}
+
+fn extract_metadata(data: &Bytes) -> PhotoMetadata {
     let mut width:        Option<i32> = None;
     let mut height:       Option<i32> = None;
     let mut taken_at:     Option<DateTime<Utc>> = None;
@@ -391,7 +413,7 @@ fn extract_metadata(
         }
     }
 
-    (width, height, taken_at, camera_make, camera_model, gps_lat, gps_lon)
+    PhotoMetadata { width, height, taken_at, camera_make, camera_model, gps_lat, gps_lon }
 }
 
 fn rational_to_deg(deg: &exif::Rational, min: &exif::Rational, sec: &exif::Rational) -> f64 {
