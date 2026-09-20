@@ -1,12 +1,6 @@
--- Module Photos — schéma principal (PostgreSQL).
---
--- Schema-qualified throughout: kubuno-db's migrator runs on the pool without a
--- schema search_path, so every object names `photos.` explicitly. `uuid-ossp`
--- (uuid_generate_v4) is created by the core; the DEFAULT is overridden anyway,
--- as the process now generates every key in Rust and binds it.
-CREATE SCHEMA IF NOT EXISTS photos;
+-- Module Photos — schéma principal
 
-CREATE TABLE IF NOT EXISTS photos.photos (
+CREATE TABLE IF NOT EXISTS photos (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     owner_id        UUID NOT NULL,
     filename        VARCHAR(500) NOT NULL,
@@ -35,25 +29,25 @@ CREATE TABLE IF NOT EXISTS photos.photos (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_photos_owner   ON photos.photos(owner_id);
-CREATE INDEX IF NOT EXISTS idx_photos_taken   ON photos.photos(owner_id, taken_at DESC NULLS LAST);
-CREATE INDEX IF NOT EXISTS idx_photos_starred ON photos.photos(owner_id, is_starred) WHERE is_starred = TRUE;
-CREATE INDEX IF NOT EXISTS idx_photos_trashed ON photos.photos(owner_id, is_trashed);
-CREATE INDEX IF NOT EXISTS idx_photos_hash    ON photos.photos(content_hash) WHERE content_hash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_photos_owner   ON photos(owner_id);
+CREATE INDEX IF NOT EXISTS idx_photos_taken   ON photos(owner_id, taken_at DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS idx_photos_starred ON photos(owner_id, is_starred) WHERE is_starred = TRUE;
+CREATE INDEX IF NOT EXISTS idx_photos_trashed ON photos(owner_id, is_trashed);
+CREATE INDEX IF NOT EXISTS idx_photos_hash    ON photos(content_hash) WHERE content_hash IS NOT NULL;
 
-CREATE OR REPLACE FUNCTION photos.set_photos_updated_at()
+CREATE OR REPLACE FUNCTION set_photos_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER photos_updated_at
-    BEFORE UPDATE ON photos.photos
-    FOR EACH ROW EXECUTE FUNCTION photos.set_photos_updated_at();
+    BEFORE UPDATE ON photos
+    FOR EACH ROW EXECUTE FUNCTION set_photos_updated_at();
 
-CREATE TABLE IF NOT EXISTS photos.shares (
+CREATE TABLE IF NOT EXISTS shares (
     id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     owner_id    UUID NOT NULL,
-    photo_id    UUID REFERENCES photos.photos(id) ON DELETE CASCADE,
+    photo_id    UUID REFERENCES photos(id) ON DELETE CASCADE,
     album_id    UUID,  -- référence ajoutée dans migration 000002
     token       VARCHAR(64) UNIQUE NOT NULL,
     expires_at  TIMESTAMPTZ,
@@ -65,5 +59,5 @@ CREATE TABLE IF NOT EXISTS photos.shares (
     )
 );
 
-CREATE INDEX IF NOT EXISTS idx_photos_shares_token    ON photos.shares(token);
-CREATE INDEX IF NOT EXISTS idx_photos_shares_owner    ON photos.shares(owner_id);
+CREATE INDEX IF NOT EXISTS idx_photos_shares_token    ON shares(token);
+CREATE INDEX IF NOT EXISTS idx_photos_shares_owner    ON shares(owner_id);

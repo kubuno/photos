@@ -1,3 +1,3 @@
-DROP TABLE IF EXISTS photos.shares;
-DROP TABLE IF EXISTS photos.photos;
-DROP FUNCTION IF EXISTS photos.set_photos_updated_at;
+DROP TABLE IF EXISTS shares;
+DROP TABLE IF EXISTS photos;
+DROP FUNCTION IF EXISTS set_photos_updated_at;
