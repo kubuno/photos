@@ -4,8 +4,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::Utc;
+use kubuno_db::{params, DbPool};
 use kubuno_storage::StorageBackend;
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::services::photo_service::{preview_path, thumbnail_path};
@@ -16,29 +17,32 @@ use crate::state::AppState;
 /// space. Bounded per run so a large backlog drains gradually. Returns the count
 /// purged.
 async fn purge_old_photos(
-    db: &PgPool,
+    db: &DbPool,
     storage: &Arc<dyn StorageBackend>,
     retention_days: i32,
 ) -> usize {
-    let stale: Vec<(Uuid, Uuid, String)> = sqlx::query_as(
-        "SELECT id, owner_id, storage_path FROM photos.photos
-         WHERE is_trashed = TRUE AND trashed_at IS NOT NULL
-           AND trashed_at < NOW() - make_interval(days => $1)
-         LIMIT 500",
-    )
-    .bind(retention_days)
-    .fetch_all(db)
-    .await
-    .unwrap_or_default();
+    // The retention window is applied by binding the cutoff instant computed in
+    // Rust rather than with `NOW() - make_interval(...)`, which is
+    // PostgreSQL-only.
+    let cutoff = Utc::now() - chrono::Duration::days(retention_days as i64);
+    let stale: Vec<(Uuid, Uuid, String)> = db
+        .fetch_all_as::<(Uuid, Uuid, String)>(
+            "SELECT id, owner_id, storage_path FROM photos.photos
+             WHERE is_trashed = TRUE AND trashed_at IS NOT NULL
+               AND trashed_at < $1
+             LIMIT 500",
+            params![cutoff],
+        )
+        .await
+        .unwrap_or_default();
 
     let mut purged = 0usize;
     for (id, owner, path) in stale {
         let _ = storage.delete(&path).await;
         let _ = storage.delete(&thumbnail_path(owner, id)).await;
         let _ = storage.delete(&preview_path(owner, id)).await;
-        if sqlx::query("DELETE FROM photos.photos WHERE id = $1")
-            .bind(id)
-            .execute(db)
+        if db
+            .execute("DELETE FROM photos.photos WHERE id = $1", params![id])
             .await
             .is_ok()
         {

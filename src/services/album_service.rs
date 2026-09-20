@@ -1,168 +1,195 @@
 use anyhow::{Context, Result};
-use sqlx::PgPool;
+use chrono::Utc;
+use kubuno_db::{params, DbPool};
 use uuid::Uuid;
 
 use crate::models::{AddPhotosToAlbumDto, Album, CreateAlbumDto, UpdateAlbumDto};
 
-pub async fn list_albums(db: &PgPool, owner_id: Uuid) -> Result<Vec<Album>> {
-    let albums = sqlx::query_as::<_, Album>(
-        r#"SELECT a.*,
-              COALESCE((SELECT COUNT(*) FROM photos.album_photos ap WHERE ap.album_id = a.id), 0) AS photo_count
-           FROM photos.albums a
-           WHERE a.owner_id = $1
-           ORDER BY a.updated_at DESC"#,
+/// The base `SELECT` for an album with its live photo count.
+///
+/// `COUNT(*)` does not return the same SQL type on the three engines, so it is
+/// wrapped by `count_bigint` (a cast to a signed 64-bit integer) — otherwise
+/// MySQL's `BIGINT UNSIGNED` would not decode into `Album::photo_count` (`i64`).
+fn album_select(backend: kubuno_db::Backend) -> String {
+    format!(
+        "SELECT a.*, \
+           COALESCE((SELECT {count} FROM photos.album_photos ap WHERE ap.album_id = a.id), 0) AS photo_count \
+         FROM photos.albums a",
+        count = backend.count_bigint("*"),
     )
-    .bind(owner_id)
-    .fetch_all(db)
-    .await
-    .context("list_albums")?;
+}
+
+pub async fn list_albums(db: &DbPool, owner_id: Uuid) -> Result<Vec<Album>> {
+    let sql = format!(
+        "{base} WHERE a.owner_id = $1 ORDER BY a.updated_at DESC",
+        base = album_select(db.backend()),
+    );
+    let albums = db
+        .fetch_all_as::<Album>(&sql, params![owner_id])
+        .await
+        .context("list_albums")?;
 
     Ok(albums)
 }
 
-pub async fn get_album(db: &PgPool, id: Uuid, owner_id: Uuid) -> Result<Option<Album>> {
-    let album = sqlx::query_as::<_, Album>(
-        r#"SELECT a.*,
-              COALESCE((SELECT COUNT(*) FROM photos.album_photos ap WHERE ap.album_id = a.id), 0) AS photo_count
-           FROM photos.albums a
-           WHERE a.id = $1 AND a.owner_id = $2"#,
-    )
-    .bind(id)
-    .bind(owner_id)
-    .fetch_optional(db)
-    .await
-    .context("get_album")?;
+pub async fn get_album(db: &DbPool, id: Uuid, owner_id: Uuid) -> Result<Option<Album>> {
+    let sql = format!(
+        "{base} WHERE a.id = $1 AND a.owner_id = $2",
+        base = album_select(db.backend()),
+    );
+    let album = db
+        .fetch_optional_as::<Album>(&sql, params![id, owner_id])
+        .await
+        .context("get_album")?;
 
     Ok(album)
 }
 
-pub async fn create_album(db: &PgPool, owner_id: Uuid, dto: CreateAlbumDto) -> Result<Album> {
-    let album = sqlx::query_as::<_, Album>(
-        r#"WITH ins AS (
-               INSERT INTO photos.albums (owner_id, name, description)
-               VALUES ($1, $2, $3)
-               RETURNING *
-           )
-           SELECT ins.*, 0::bigint AS photo_count FROM ins"#,
+pub async fn create_album(db: &DbPool, owner_id: Uuid, dto: CreateAlbumDto) -> Result<Album> {
+    // The key is generated here and bound (no `RETURNING` on MySQL/SQLite). The
+    // row is then read back with the same projection as `get_album`, so a fresh
+    // album reports `photo_count = 0` without a special-cased literal.
+    let id = kubuno_db::new_id();
+    db.execute(
+        "INSERT INTO photos.albums (id, owner_id, name, description) VALUES ($1, $2, $3, $4)",
+        params![id, owner_id, &dto.name, dto.description.as_deref()],
     )
-    .bind(owner_id)
-    .bind(&dto.name)
-    .bind(dto.description.as_deref())
-    .fetch_one(db)
     .await
     .context("create_album")?;
+
+    let sql = format!(
+        "{base} WHERE a.id = $1",
+        base = album_select(db.backend()),
+    );
+    let album = db
+        .fetch_one_as::<Album>(&sql, params![id])
+        .await
+        .context("create_album reselect")?;
 
     Ok(album)
 }
 
 pub async fn update_album(
-    db: &PgPool,
+    db: &DbPool,
     id: Uuid,
     owner_id: Uuid,
     dto: UpdateAlbumDto,
 ) -> Result<Option<Album>> {
-    let album = sqlx::query_as::<_, Album>(
-        r#"WITH upd AS (
-               UPDATE photos.albums
-               SET name           = COALESCE($1, name),
-                   description    = COALESCE($2, description),
-                   cover_photo_id = COALESCE($3, cover_photo_id),
-                   updated_at     = NOW()
-               WHERE id = $4 AND owner_id = $5
-               RETURNING *
-           )
-           SELECT upd.*,
-               COALESCE((SELECT COUNT(*) FROM photos.album_photos ap WHERE ap.album_id = upd.id), 0) AS photo_count
-           FROM upd"#,
+    db.execute(
+        r#"UPDATE photos.albums
+           SET name           = COALESCE($1, name),
+               description    = COALESCE($2, description),
+               cover_photo_id = COALESCE($3, cover_photo_id),
+               updated_at     = $4
+           WHERE id = $5 AND owner_id = $6"#,
+        params![
+            dto.name.as_deref(),
+            dto.description.as_deref(),
+            dto.cover_photo_id,
+            Utc::now(),
+            id,
+            owner_id,
+        ],
     )
-    .bind(dto.name.as_deref())
-    .bind(dto.description.as_deref())
-    .bind(dto.cover_photo_id)
-    .bind(id)
-    .bind(owner_id)
-    .fetch_optional(db)
     .await
     .context("update_album")?;
+
+    let sql = format!(
+        "{base} WHERE a.id = $1 AND a.owner_id = $2",
+        base = album_select(db.backend()),
+    );
+    let album = db
+        .fetch_optional_as::<Album>(&sql, params![id, owner_id])
+        .await
+        .context("update_album reselect")?;
 
     Ok(album)
 }
 
-pub async fn delete_album(db: &PgPool, id: Uuid, owner_id: Uuid) -> Result<bool> {
-    let rows = sqlx::query(
-        "DELETE FROM photos.albums WHERE id = $1 AND owner_id = $2",
-    )
-    .bind(id)
-    .bind(owner_id)
-    .execute(db)
-    .await
-    .context("delete_album")?
-    .rows_affected();
+pub async fn delete_album(db: &DbPool, id: Uuid, owner_id: Uuid) -> Result<bool> {
+    let rows = db
+        .execute(
+            "DELETE FROM photos.albums WHERE id = $1 AND owner_id = $2",
+            params![id, owner_id],
+        )
+        .await
+        .context("delete_album")?;
 
     Ok(rows > 0)
 }
 
 pub async fn add_photos(
-    db: &PgPool,
+    db: &DbPool,
     album_id: Uuid,
     owner_id: Uuid,
     dto: AddPhotosToAlbumDto,
 ) -> Result<usize> {
-    // Vérifier que l'album appartient bien à l'utilisateur
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM photos.albums WHERE id = $1 AND owner_id = $2)",
-    )
-    .bind(album_id)
-    .bind(owner_id)
-    .fetch_one(db)
-    .await
-    .context("add_photos: check album ownership")?;
+    let backend = db.backend();
 
-    if !exists {
+    // Vérifier que l'album appartient bien à l'utilisateur. `EXISTS` does not
+    // decode to a uniform Rust type across engines (a boolean on PostgreSQL, an
+    // integer elsewhere), so ownership is checked with a counted `i64`.
+    let owned: i64 = db
+        .fetch_scalar(
+            &format!(
+                "SELECT {count} FROM photos.albums WHERE id = $1 AND owner_id = $2",
+                count = backend.count_bigint("*"),
+            ),
+            params![album_id, owner_id],
+        )
+        .await
+        .context("add_photos: check album ownership")?;
+
+    if owned == 0 {
         return Ok(0);
     }
 
+    // `ON CONFLICT DO NOTHING` is spelled in two halves: a prefix (`INSERT
+    // IGNORE` on MySQL) and a trailing clause (`ON CONFLICT (...) DO NOTHING` on
+    // PostgreSQL/SQLite).
+    let insert_sql = format!(
+        "INSERT {ignore}INTO photos.album_photos (album_id, photo_id) VALUES ($1, $2){on_conflict}",
+        ignore = backend.insert_ignore_prefix(),
+        on_conflict = backend.on_conflict_do_nothing(&["album_id", "photo_id"]),
+    );
+
     let mut count = 0usize;
     for photo_id in &dto.photo_ids {
-        let rows = sqlx::query(
-            "INSERT INTO photos.album_photos (album_id, photo_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        )
-        .bind(album_id)
-        .bind(photo_id)
-        .execute(db)
-        .await
-        .context("add_photos insert")?
-        .rows_affected();
+        let rows = db
+            .execute(&insert_sql, params![album_id, photo_id])
+            .await
+            .context("add_photos insert")?;
         count += rows as usize;
     }
 
     // Mettre à jour updated_at de l'album
-    sqlx::query("UPDATE photos.albums SET updated_at = NOW() WHERE id = $1")
-        .bind(album_id)
-        .execute(db)
-        .await
-        .context("add_photos: update album")?;
+    db.execute(
+        "UPDATE photos.albums SET updated_at = $1 WHERE id = $2",
+        params![Utc::now(), album_id],
+    )
+    .await
+    .context("add_photos: update album")?;
 
     Ok(count)
 }
 
 pub async fn remove_photo(
-    db: &PgPool,
+    db: &DbPool,
     album_id: Uuid,
     photo_id: Uuid,
     owner_id: Uuid,
 ) -> Result<bool> {
-    let rows = sqlx::query(
-        r#"DELETE FROM photos.album_photos
-           WHERE album_id = $1 AND photo_id = $2
-             AND (SELECT owner_id FROM photos.albums WHERE id = $1) = $3"#,
-    )
-    .bind(album_id)
-    .bind(photo_id)
-    .bind(owner_id)
-    .execute(db)
-    .await
-    .context("remove_photo from album")?
-    .rows_affected();
+    // `album_id` is bound twice (once for the row, once for the ownership
+    // subquery): a placeholder is positional and cannot be reused.
+    let rows = db
+        .execute(
+            r#"DELETE FROM photos.album_photos
+               WHERE album_id = $1 AND photo_id = $2
+                 AND (SELECT owner_id FROM photos.albums WHERE id = $3) = $4"#,
+            params![album_id, photo_id, album_id, owner_id],
+        )
+        .await
+        .context("remove_photo from album")?;
 
     Ok(rows > 0)
 }

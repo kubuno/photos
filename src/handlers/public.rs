@@ -41,17 +41,18 @@ use crate::{
 };
 
 async fn get_valid_share(state: &AppState, token: &str) -> Result<Share> {
-    let share = sqlx::query_as::<_, Share>(
-        "SELECT * FROM photos.shares WHERE token = $1",
-    )
-    .bind(token)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "Lecture d'un partage public échouée");
-        PhotosError::Database(e)
-    })?
-    .ok_or_else(|| PhotosError::NotFound("Partage introuvable".into()))?;
+    let share = state
+        .db
+        .fetch_optional_as::<Share>(
+            "SELECT * FROM photos.shares WHERE token = $1",
+            kubuno_db::params![token],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Lecture d'un partage public échouée");
+            PhotosError::Database(e)
+        })?
+        .ok_or_else(|| PhotosError::NotFound("Partage introuvable".into()))?;
 
     if let Some(exp) = share.expires_at {
         if exp < chrono::Utc::now() {

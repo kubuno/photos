@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
-use sqlx::PgPool;
+use kubuno_db::{params, DbPool, DbValue};
 use uuid::Uuid;
 
 use kubuno_storage::StorageBackend;
@@ -11,91 +11,105 @@ use crate::models::{ListPhotosQuery, Photo, UpdatePhotoDto};
 
 /// Liste les photos d'un utilisateur.
 pub async fn list_photos(
-    db: &PgPool,
+    db: &DbPool,
     owner_id: Uuid,
     q: ListPhotosQuery,
 ) -> Result<Vec<Photo>> {
     let limit  = q.limit.unwrap_or(100).min(500);
     let offset = q.offset.unwrap_or(0);
+    let backend = db.backend();
 
+    // `NULLS LAST` has no portable spelling (MySQL rejects the syntax), so the
+    // null-last order is expressed as `(taken_at IS NULL)` — a 0/1 sort key on
+    // every engine.
     let photos = if q.trashed == Some(true) {
-        sqlx::query_as::<_, Photo>(
-            r#"SELECT p.*,
-                (SELECT COUNT(*) FROM photos.album_photos ap WHERE ap.photo_id = p.id) AS _unused
-               FROM photos.photos p
-               WHERE p.owner_id = $1 AND p.is_trashed = TRUE
-               ORDER BY p.trashed_at DESC
+        db.fetch_all_as::<Photo>(
+            r#"SELECT * FROM photos.photos
+               WHERE owner_id = $1 AND is_trashed = TRUE
+               ORDER BY trashed_at DESC
                LIMIT $2 OFFSET $3"#,
+            params![owner_id, limit, offset],
         )
-        .bind(owner_id)
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(db)
         .await
         .context("list_photos trashed")?
     } else if q.starred == Some(true) {
-        sqlx::query_as::<_, Photo>(
+        db.fetch_all_as::<Photo>(
             r#"SELECT * FROM photos.photos
                WHERE owner_id = $1 AND is_starred = TRUE AND is_trashed = FALSE
-               ORDER BY taken_at DESC NULLS LAST, created_at DESC
+               ORDER BY (taken_at IS NULL), taken_at DESC, created_at DESC
                LIMIT $2 OFFSET $3"#,
+            params![owner_id, limit, offset],
         )
-        .bind(owner_id)
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(db)
         .await
         .context("list_photos starred")?
     } else if let Some(album_id) = q.album_id {
-        sqlx::query_as::<_, Photo>(
+        db.fetch_all_as::<Photo>(
             r#"SELECT p.* FROM photos.photos p
                INNER JOIN photos.album_photos ap ON ap.photo_id = p.id
                WHERE ap.album_id = $1 AND p.owner_id = $2 AND p.is_trashed = FALSE
                ORDER BY ap.added_at DESC
                LIMIT $3 OFFSET $4"#,
+            params![album_id, owner_id, limit, offset],
         )
-        .bind(album_id)
-        .bind(owner_id)
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(db)
         .await
         .context("list_photos by album")?
     } else {
-        sqlx::query_as::<_, Photo>(
-            r#"SELECT * FROM photos.photos
-               WHERE owner_id = $1
-                 AND is_trashed = FALSE
-                 AND ($3::timestamptz IS NULL OR taken_at >= $3)
-                 AND ($4::timestamptz IS NULL OR taken_at <= $4)
-                 AND ($5::text IS NULL OR original_name ILIKE '%' || $5 || '%' OR description ILIKE '%' || $5 || '%')
-               ORDER BY taken_at DESC NULLS LAST, created_at DESC
-               LIMIT $2 OFFSET $6"#,
-        )
-        .bind(owner_id)
-        .bind(limit)
-        .bind(q.from)
-        .bind(q.to)
-        .bind(q.search.as_deref())
-        .bind(offset)
-        .fetch_all(db)
-        .await
-        .context("list_photos")?
+        // Built dynamically: the source query reused `$3`/`$4`/`$5` across an
+        // `IS NULL OR …` pair, which the runtime layer refuses (a placeholder is
+        // positional and cannot be reused). Each optional filter now appends its
+        // own clause and binds once, in order.
+        let mut sql = String::from(
+            "SELECT * FROM photos.photos WHERE owner_id = $1 AND is_trashed = FALSE",
+        );
+        let mut p: Vec<DbValue> = params![owner_id];
+        let mut n = 2usize;
+
+        if let Some(from) = q.from {
+            sql.push_str(&format!(" AND taken_at >= ${n}"));
+            p.push(DbValue::from(from));
+            n += 1;
+        }
+        if let Some(to) = q.to {
+            sql.push_str(&format!(" AND taken_at <= ${n}"));
+            p.push(DbValue::from(to));
+            n += 1;
+        }
+        if let Some(search) = q.search.as_deref().filter(|s| !s.is_empty()) {
+            // Bind the wildcards rather than concatenating with `||`, which is
+            // logical OR (not string concat) on MySQL. The same pattern is bound
+            // twice because a placeholder cannot be reused.
+            let like = format!("%{search}%");
+            let name_cond = backend.ilike("original_name", n);
+            let desc_cond = backend.ilike("description", n + 1);
+            sql.push_str(&format!(" AND ({name_cond} OR {desc_cond})"));
+            p.push(DbValue::from(like.clone()));
+            p.push(DbValue::from(like));
+            n += 2;
+        }
+
+        sql.push_str(&format!(
+            " ORDER BY (taken_at IS NULL), taken_at DESC, created_at DESC LIMIT ${} OFFSET ${}",
+            n,
+            n + 1,
+        ));
+        p.push(DbValue::from(limit));
+        p.push(DbValue::from(offset));
+
+        db.fetch_all_as::<Photo>(&sql, p).await.context("list_photos")?
     };
 
     Ok(photos)
 }
 
 /// Récupère une photo par ID (vérifie ownership).
-pub async fn get_photo(db: &PgPool, id: Uuid, owner_id: Uuid) -> Result<Option<Photo>> {
-    let photo = sqlx::query_as::<_, Photo>(
-        "SELECT * FROM photos.photos WHERE id = $1 AND owner_id = $2",
-    )
-    .bind(id)
-    .bind(owner_id)
-    .fetch_optional(db)
-    .await
-    .context("get_photo")?;
+pub async fn get_photo(db: &DbPool, id: Uuid, owner_id: Uuid) -> Result<Option<Photo>> {
+    let photo = db
+        .fetch_optional_as::<Photo>(
+            "SELECT * FROM photos.photos WHERE id = $1 AND owner_id = $2",
+            params![id, owner_id],
+        )
+        .await
+        .context("get_photo")?;
 
     Ok(photo)
 }
@@ -115,7 +129,7 @@ pub struct UploadLimits {
 }
 
 pub async fn upload_photo(
-    db: &PgPool,
+    db: &DbPool,
     storage: &dyn StorageBackend,
     owner_id: Uuid,
     original_name: &str,
@@ -164,35 +178,52 @@ pub async fn upload_photo(
     let has_preview   = preview_bytes > 0;
     let derived_bytes = (thumbnail_bytes + preview_bytes) as i64;
 
-    let photo = sqlx::query_as::<_, Photo>(
+    // The key is generated here and bound explicitly (see `id` above): MySQL and
+    // SQLite have no `RETURNING`, so a database-invented key could not be read
+    // back. With the key known before the write, the insert is a plain statement
+    // and the row is read back by primary key — identical on the three engines.
+    // `metadata` is bound explicitly (an empty JSON object) rather than left to a
+    // column DEFAULT: a non-NULL JSON default is spelled inconsistently across
+    // the three engines, and the column decodes into a non-optional
+    // `serde_json::Value`.
+    db.execute(
         r#"INSERT INTO photos.photos
            (id, owner_id, filename, original_name, mime_type, size_bytes, width, height,
             storage_path, content_hash, taken_at, camera_make, camera_model,
-            gps_lat, gps_lon, has_thumbnail, has_preview, derived_bytes)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-           RETURNING *"#,
+            gps_lat, gps_lon, has_thumbnail, has_preview, derived_bytes, metadata)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)"#,
+        params![
+            id,
+            owner_id,
+            &sanitized,
+            original_name,
+            &mime,
+            data.len() as i64,
+            width,
+            height,
+            &storage_path,
+            &hash,
+            taken_at,
+            camera_make.as_deref(),
+            camera_model.as_deref(),
+            gps_lat,
+            gps_lon,
+            has_thumbnail,
+            has_preview,
+            derived_bytes,
+            serde_json::json!({}),
+        ],
     )
-    .bind(id)
-    .bind(owner_id)
-    .bind(&sanitized)
-    .bind(original_name)
-    .bind(&mime)
-    .bind(data.len() as i64)
-    .bind(width)
-    .bind(height)
-    .bind(&storage_path)
-    .bind(&hash)
-    .bind(taken_at)
-    .bind(camera_make.as_deref())
-    .bind(camera_model.as_deref())
-    .bind(gps_lat)
-    .bind(gps_lon)
-    .bind(has_thumbnail)
-    .bind(has_preview)
-    .bind(derived_bytes)
-    .fetch_one(db)
     .await
     .context("Insertion photo en DB")?;
+
+    let photo = db
+        .fetch_one_as::<Photo>(
+            "SELECT * FROM photos.photos WHERE id = $1",
+            params![id],
+        )
+        .await
+        .context("Relecture de la photo insérée")?;
 
     // An upload moves this account's declared total; the reporter coalesces the
     // mark and declares a few seconds later, so the upload never waits on the core.
@@ -203,44 +234,59 @@ pub async fn upload_photo(
 
 /// Met à jour les métadonnées d'une photo.
 pub async fn update_photo(
-    db: &PgPool,
+    db: &DbPool,
     id: Uuid,
     owner_id: Uuid,
     dto: UpdatePhotoDto,
 ) -> anyhow::Result<Option<Photo>> {
-    let photo = sqlx::query_as::<_, Photo>(
+    // No `RETURNING`: the update is applied, then the row is re-read by its
+    // primary key (and owner, so a wrong owner still yields `None`). The `WHERE`
+    // is on immutable columns, so this is not the guarded-update case the runtime
+    // layer cannot emulate. `updated_at` is bound from Rust rather than `NOW()`.
+    db.execute(
         r#"UPDATE photos.photos
            SET description = COALESCE($1, description),
                is_starred  = COALESCE($2, is_starred),
                taken_at    = COALESCE($3, taken_at),
-               updated_at  = NOW()
-           WHERE id = $4 AND owner_id = $5
-           RETURNING *"#,
+               updated_at  = $4
+           WHERE id = $5 AND owner_id = $6"#,
+        params![
+            dto.description.as_deref(),
+            dto.is_starred,
+            dto.taken_at,
+            Utc::now(),
+            id,
+            owner_id,
+        ],
     )
-    .bind(dto.description.as_deref())
-    .bind(dto.is_starred)
-    .bind(dto.taken_at)
-    .bind(id)
-    .bind(owner_id)
-    .fetch_optional(db)
     .await
     .context("update_photo")?;
+
+    let photo = db
+        .fetch_optional_as::<Photo>(
+            "SELECT * FROM photos.photos WHERE id = $1 AND owner_id = $2",
+            params![id, owner_id],
+        )
+        .await
+        .context("update_photo reselect")?;
 
     Ok(photo)
 }
 
 /// Déplace une photo vers la corbeille (soft delete).
-pub async fn trash_photo(db: &PgPool, id: Uuid, owner_id: Uuid) -> anyhow::Result<bool> {
-    let rows = sqlx::query(
-        "UPDATE photos.photos SET is_trashed = TRUE, trashed_at = NOW(), updated_at = NOW()
-         WHERE id = $1 AND owner_id = $2 AND is_trashed = FALSE",
-    )
-    .bind(id)
-    .bind(owner_id)
-    .execute(db)
-    .await
-    .context("trash_photo")?
-    .rows_affected();
+pub async fn trash_photo(db: &DbPool, id: Uuid, owner_id: Uuid) -> anyhow::Result<bool> {
+    // `NOW()` is bound from Rust (spelled differently per engine, and SQLite has
+    // no time zone). The same instant is bound twice: a placeholder cannot be
+    // reused.
+    let now = Utc::now();
+    let rows = db
+        .execute(
+            "UPDATE photos.photos SET is_trashed = TRUE, trashed_at = $1, updated_at = $2
+             WHERE id = $3 AND owner_id = $4 AND is_trashed = FALSE",
+            params![now, now, id, owner_id],
+        )
+        .await
+        .context("trash_photo")?;
 
     // Trashing does not free a byte, it moves it from `content` to `trash` — two
     // separate lines the core bills together. Both change, so the account is
@@ -253,17 +299,15 @@ pub async fn trash_photo(db: &PgPool, id: Uuid, owner_id: Uuid) -> anyhow::Resul
 }
 
 /// Restaure une photo de la corbeille.
-pub async fn restore_photo(db: &PgPool, id: Uuid, owner_id: Uuid) -> anyhow::Result<bool> {
-    let rows = sqlx::query(
-        "UPDATE photos.photos SET is_trashed = FALSE, trashed_at = NULL, updated_at = NOW()
-         WHERE id = $1 AND owner_id = $2 AND is_trashed = TRUE",
-    )
-    .bind(id)
-    .bind(owner_id)
-    .execute(db)
-    .await
-    .context("restore_photo")?
-    .rows_affected();
+pub async fn restore_photo(db: &DbPool, id: Uuid, owner_id: Uuid) -> anyhow::Result<bool> {
+    let rows = db
+        .execute(
+            "UPDATE photos.photos SET is_trashed = FALSE, trashed_at = NULL, updated_at = $1
+             WHERE id = $2 AND owner_id = $3 AND is_trashed = TRUE",
+            params![Utc::now(), id, owner_id],
+        )
+        .await
+        .context("restore_photo")?;
 
     if rows > 0 {
         crate::services::usage::mark_dirty(owner_id);
@@ -274,21 +318,30 @@ pub async fn restore_photo(db: &PgPool, id: Uuid, owner_id: Uuid) -> anyhow::Res
 
 /// Supprime définitivement une photo.
 pub async fn delete_photo(
-    db: &PgPool,
+    db: &DbPool,
     storage: &dyn StorageBackend,
     id: Uuid,
     owner_id: Uuid,
 ) -> anyhow::Result<bool> {
-    let photo = sqlx::query_as::<_, Photo>(
-        "DELETE FROM photos.photos WHERE id = $1 AND owner_id = $2 RETURNING *",
-    )
-    .bind(id)
-    .bind(owner_id)
-    .fetch_optional(db)
-    .await
-    .context("delete_photo")?;
+    // A delete that must return the row is a read-before-write on an engine
+    // without `RETURNING`: the row is looked up first (its `storage_path` is what
+    // the caller needs), then removed.
+    let photo = db
+        .fetch_optional_as::<Photo>(
+            "SELECT * FROM photos.photos WHERE id = $1 AND owner_id = $2",
+            params![id, owner_id],
+        )
+        .await
+        .context("delete_photo lookup")?;
 
     if let Some(p) = photo {
+        db.execute(
+            "DELETE FROM photos.photos WHERE id = $1 AND owner_id = $2",
+            params![id, owner_id],
+        )
+        .await
+        .context("delete_photo")?;
+
         let _ = storage.delete(&p.storage_path).await;
         let thumb_path = thumbnail_path(owner_id, id);
         let prev_path  = preview_path(owner_id, id);

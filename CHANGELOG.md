@@ -9,6 +9,27 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ## [Unreleased]
 
+### Added
+
+- **Photos now runs on PostgreSQL, MySQL/MariaDB or SQLite, chosen at run time.**
+  A single build ships all three drivers; the administrator picks the engine in
+  configuration (`database.engine`), and the module connects to whichever is
+  named — no separate build per engine. SQLite needs no server at all, storing
+  the module's data in a file, which makes a small single-machine install
+  possible without running a database.
+
+### Changed
+
+- **Database access rewritten on the shared `kubuno-db` foundation.** Every query
+  is expressed once in PostgreSQL's placeholder style and translated per engine;
+  the constructs that differ between engines (conditional aggregates for the
+  storage report, `RETURNING` on insert/update/delete, upserts, case-insensitive
+  search, date-window filters and null-last ordering) are produced in each
+  engine's own dialect. Behaviour on PostgreSQL is unchanged.
+- **Migrations are now provided for each engine** under `migrations/postgres`,
+  `migrations/mysql` and `migrations/sqlite`, kept inside the module's own
+  namespace (a PostgreSQL schema, a MySQL database, or an attached SQLite file).
+
 ### Security
 
 - **Database driver updated past an unfixable advisory.** The previous line

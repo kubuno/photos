@@ -4,7 +4,6 @@ use kubuno_photos::{config::Settings, router, state::AppState};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -154,34 +153,25 @@ async fn main() -> Result<()> {
     // Sécurité : interdire toute exécution de processus sur l’hôte (voir kubuno-seccomp).
     kubuno_seccomp::lock_down_process_execution("photos");
 
-    let opts = settings.database.connect_options()?;
-    let pool = PgPoolOptions::new()
-        .max_connections(settings.database.max_connections)
-        .min_connections(settings.database.min_connections)
-        .acquire_timeout(settings.database.connect_timeout)
-        .connect_with(opts)
+    // Database pool. The engine (PostgreSQL / MySQL / SQLite) is the
+    // administrator's choice in `[database] engine`, read at run time; `connect`
+    // also creates the module's namespace (PostgreSQL schema, MySQL database, or
+    // the ATTACHed SQLite file).
+    let pool = kubuno_db::connect(&settings.database, kubuno_photos::SCHEMA)
         .await
-        .context("Connexion PostgreSQL")?;
+        .context("Connexion à la base de données")?;
 
+    // Migrations: the set for the pool's engine, kept inside the module's own
+    // namespace (the table PostgreSQL already used through its search_path).
     if settings.database.run_migrations {
-        sqlx::query("CREATE SCHEMA IF NOT EXISTS photos")
-            .execute(&pool)
-            .await
-            .context("Création du schéma photos")?;
-
-        let migration_opts = settings.database.connect_options()?
-            .options([("search_path", "photos,public")]);
-        let migration_pool = PgPoolOptions::new()
-            .max_connections(1)
-            .acquire_timeout(settings.database.connect_timeout)
-            .connect_with(migration_opts)
-            .await
-            .context("Pool de migration")?;
-
-        sqlx::migrate!("./migrations")
-            .run(&migration_pool)
-            .await
-            .context("Migrations")?;
+        kubuno_db::migrations!(
+            "./migrations/postgres",
+            "./migrations/mysql",
+            "./migrations/sqlite",
+        )
+        .run(&pool, kubuno_photos::SCHEMA)
+        .await
+        .context("Migrations")?;
     }
 
     let storage = kubuno_storage::from_config(&settings.storage)

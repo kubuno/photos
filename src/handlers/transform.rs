@@ -87,22 +87,25 @@ pub async fn transform(
                 storage.as_ref(), &nb, &preview_path(owner, pid), ps, quality,
             ).await;
 
-            if let Err(e) = sqlx::query(
-                "UPDATE photos.photos
-                    SET size_bytes    = $1,
-                        derived_bytes = $2,
-                        has_thumbnail = $3,
-                        has_preview   = $4,
-                        updated_at    = NOW()
-                  WHERE id = $5",
-            )
-            .bind(new_size)
-            .bind((thumb_bytes + prev_bytes) as i64)
-            .bind(thumb_bytes > 0)
-            .bind(prev_bytes > 0)
-            .bind(pid)
-            .execute(&db)
-            .await
+            if let Err(e) = db
+                .execute(
+                    "UPDATE photos.photos
+                        SET size_bytes    = $1,
+                            derived_bytes = $2,
+                            has_thumbnail = $3,
+                            has_preview   = $4,
+                            updated_at    = $5
+                      WHERE id = $6",
+                    kubuno_db::params![
+                        new_size,
+                        (thumb_bytes + prev_bytes) as i64,
+                        thumb_bytes > 0,
+                        prev_bytes > 0,
+                        chrono::Utc::now(),
+                        pid,
+                    ],
+                )
+                .await
             {
                 tracing::error!(error = %e, photo = %pid, "Mise à jour des tailles après transformation échouée");
                 return;

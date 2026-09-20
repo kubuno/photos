@@ -55,8 +55,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 use std::time::Duration;
 
+use kubuno_db::{params, DbPool, DbValue};
 use serde_json::json;
-use sqlx::PgPool;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -163,14 +163,33 @@ struct Totals {
 
 /// The single aggregate query, parameterised only by its `WHERE` clause so the
 /// per-account and whole-instance paths cannot drift apart in their definitions.
-const TOTALS_SELECT: &str = "SELECT owner_id,
-            COALESCE(SUM(size_bytes) FILTER (WHERE NOT is_trashed), 0)::bigint,
-            (COUNT(*) FILTER (WHERE NOT is_trashed))::bigint,
-            COALESCE(SUM(size_bytes) FILTER (WHERE is_trashed), 0)::bigint,
-            (COUNT(*) FILTER (WHERE is_trashed))::bigint,
-            COALESCE(SUM(derived_bytes), 0)::bigint,
-            (COUNT(*) FILTER (WHERE has_thumbnail) + COUNT(*) FILTER (WHERE has_preview))::bigint
-       FROM photos.photos";
+///
+/// Two things here are not portable and are produced per engine rather than
+/// written once:
+///
+/// * **`FILTER (WHERE …)`** exists on PostgreSQL and SQLite but not MySQL, so
+///   each conditional aggregate is expressed as a `CASE` inside the aggregate —
+///   `SUM(CASE WHEN … THEN size_bytes ELSE 0 END)`, `COUNT(CASE WHEN … THEN 1
+///   END)` — which all three engines accept.
+/// * **The aggregate return type** (`numeric`/`DECIMAL`/`BIGINT UNSIGNED`) does
+///   not decode into `i64` everywhere, so every aggregate is wrapped by
+///   `sum_bigint` / `count_bigint`, which cast it and coalesce `NULL` to `0`.
+fn totals_select(backend: kubuno_db::Backend) -> String {
+    // Derivatives are counted per file, so the thumbnail and preview counts are
+    // summed. Built outside the outer `format!` to keep both aggregates cast.
+    let thumbnail_count = backend.count_bigint("CASE WHEN has_thumbnail THEN 1 END");
+    let preview_count = backend.count_bigint("CASE WHEN has_preview THEN 1 END");
+    let derived_count = format!("{thumbnail_count} + {preview_count}");
+    format!(
+        "SELECT owner_id, {content_bytes}, {content_count}, {trash_bytes}, \
+         {trash_count}, {derived_bytes}, {derived_count} FROM photos.photos",
+        content_bytes = backend.sum_bigint("CASE WHEN NOT is_trashed THEN size_bytes ELSE 0 END"),
+        content_count = backend.count_bigint("CASE WHEN NOT is_trashed THEN 1 END"),
+        trash_bytes = backend.sum_bigint("CASE WHEN is_trashed THEN size_bytes ELSE 0 END"),
+        trash_count = backend.count_bigint("CASE WHEN is_trashed THEN 1 END"),
+        derived_bytes = backend.sum_bigint("derived_bytes"),
+    )
+}
 
 type TotalsRow = (Uuid, i64, i64, i64, i64, i64, i64);
 
@@ -218,11 +237,17 @@ fn entries_for(user_id: Uuid, t: &Totals) -> Vec<Entry> {
 ///
 /// Accounts with no photos at all are absent from the `GROUP BY`, so they are
 /// filled back in at zero — see [`entries_for`].
-async fn totals_for(db: &PgPool, owners: &[Uuid]) -> Result<Vec<Entry>, sqlx::Error> {
-    let sql = format!("{TOTALS_SELECT} WHERE owner_id = ANY($1) GROUP BY owner_id");
-    // Audited: TOTALS_SELECT is a const and the clause is a literal; the owner
-    // list is bound.
-    let rows: Vec<TotalsRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql)).bind(owners).fetch_all(db).await?;
+async fn totals_for(db: &DbPool, owners: &[Uuid]) -> Result<Vec<Entry>, sqlx::Error> {
+    let backend = db.backend();
+    // `= ANY($1)` binds an array, which only PostgreSQL has; it becomes an
+    // `IN (...)` list with one bound placeholder per owner.
+    let sql = format!(
+        "{select} WHERE owner_id IN ({in_list}) GROUP BY owner_id",
+        select = totals_select(backend),
+        in_list = backend.in_list(1, owners.len()),
+    );
+    let p: Vec<DbValue> = owners.iter().map(DbValue::from).collect();
+    let rows: Vec<TotalsRow> = db.fetch_all_as::<TotalsRow>(&sql, p).await?;
 
     let found: HashMap<Uuid, Totals> = rows.iter().map(|r| (r.0, row_to_totals(r))).collect();
     let zero = Totals {
@@ -241,10 +266,9 @@ async fn totals_for(db: &PgPool, owners: &[Uuid]) -> Result<Vec<Entry>, sqlx::Er
 }
 
 /// Recounts every account photos holds anything for.
-async fn totals_all(db: &PgPool) -> Result<Vec<Entry>, sqlx::Error> {
-    let sql = format!("{TOTALS_SELECT} GROUP BY owner_id");
-    // Audited: same — a const SELECT plus a literal GROUP BY.
-    let rows: Vec<TotalsRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql)).fetch_all(db).await?;
+async fn totals_all(db: &DbPool) -> Result<Vec<Entry>, sqlx::Error> {
+    let sql = format!("{select} GROUP BY owner_id", select = totals_select(db.backend()));
+    let rows: Vec<TotalsRow> = db.fetch_all_as::<TotalsRow>(&sql, params![]).await?;
 
     let mut entries: Vec<Entry> = rows
         .iter()
@@ -266,20 +290,20 @@ async fn totals_all(db: &PgPool) -> Result<Vec<Entry>, sqlx::Error> {
 /// `has_preview` cleared rather than being left at zero. Without that, `0` would
 /// stay ambiguous between "not measured yet" and "genuinely nothing", and the
 /// scan would re-measure the same broken rows every six hours forever.
-async fn backfill_derived_bytes(db: &PgPool, storage: &dyn kubuno_storage::StorageBackend) {
+async fn backfill_derived_bytes(db: &DbPool, storage: &dyn kubuno_storage::StorageBackend) {
     let mut repaired = 0usize;
 
     for _ in 0..BACKFILL_MAX_BATCHES {
-        let rows: Vec<(Uuid, Uuid, bool, bool)> = match sqlx::query_as(
-            "SELECT id, owner_id, has_thumbnail, has_preview
-               FROM photos.photos
-              WHERE derived_bytes = 0 AND (has_thumbnail OR has_preview)
-              ORDER BY id
-              LIMIT $1",
-        )
-        .bind(BACKFILL_BATCH)
-        .fetch_all(db)
-        .await
+        let rows: Vec<(Uuid, Uuid, bool, bool)> = match db
+            .fetch_all_as::<(Uuid, Uuid, bool, bool)>(
+                "SELECT id, owner_id, has_thumbnail, has_preview
+                   FROM photos.photos
+                  WHERE derived_bytes = 0 AND (has_thumbnail OR has_preview)
+                  ORDER BY id
+                  LIMIT $1",
+                params![BACKFILL_BATCH],
+            )
+            .await
         {
             Ok(r) => r,
             Err(e) => {
@@ -317,17 +341,14 @@ async fn backfill_derived_bytes(db: &PgPool, storage: &dyn kubuno_storage::Stora
                 }
             }
 
-            if let Err(e) = sqlx::query(
-                "UPDATE photos.photos
-                    SET derived_bytes = $1, has_thumbnail = $2, has_preview = $3
-                  WHERE id = $4",
-            )
-            .bind(total)
-            .bind(thumb_ok)
-            .bind(preview_ok)
-            .bind(id)
-            .execute(db)
-            .await
+            if let Err(e) = db
+                .execute(
+                    "UPDATE photos.photos
+                        SET derived_bytes = $1, has_thumbnail = $2, has_preview = $3
+                      WHERE id = $4",
+                    params![total, thumb_ok, preview_ok, id],
+                )
+                .await
             {
                 tracing::error!(error = %e, photo = %id, "Écriture du rattrapage des dérivés échouée");
                 continue;
@@ -686,8 +707,17 @@ mod tests {
     /// another module, or the same bytes would be counted twice.
     #[test]
     fn totals_query_reads_only_the_photos_schema() {
-        assert!(TOTALS_SELECT.contains("photos.photos"));
-        assert!(!TOTALS_SELECT.contains("drive."));
-        assert!(!TOTALS_SELECT.contains("core."));
+        // Checked on every engine's rendering: none may reach outside the
+        // module's own schema.
+        for backend in [
+            kubuno_db::Backend::Postgres,
+            kubuno_db::Backend::MySql,
+            kubuno_db::Backend::Sqlite,
+        ] {
+            let sql = totals_select(backend);
+            assert!(sql.contains("photos.photos"));
+            assert!(!sql.contains("drive."));
+            assert!(!sql.contains("core."));
+        }
     }
 }

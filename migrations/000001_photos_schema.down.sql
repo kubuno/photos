@@ -1,3 +1,0 @@
-DROP TABLE IF EXISTS shares;
-DROP TABLE IF EXISTS photos;
-DROP FUNCTION IF EXISTS set_photos_updated_at;

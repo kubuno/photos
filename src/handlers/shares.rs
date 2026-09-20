@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use kubuno_db::params;
 use rand::RngCore;
 use serde_json::{json, Value};
 use uuid::Uuid;
@@ -19,13 +20,14 @@ pub async fn list(
     State(state): State<AppState>,
     Extension(user): Extension<PhotosUser>,
 ) -> Result<Json<Value>> {
-    let shares = sqlx::query_as::<_, Share>(
-        "SELECT * FROM photos.shares WHERE owner_id = $1 ORDER BY created_at DESC",
-    )
-    .bind(user.id)
-    .fetch_all(&state.db)
-    .await
-    .map_err(PhotosError::Database)?;
+    let shares = state
+        .db
+        .fetch_all_as::<Share>(
+            "SELECT * FROM photos.shares WHERE owner_id = $1 ORDER BY created_at DESC",
+            params![user.id],
+        )
+        .await
+        .map_err(PhotosError::Database)?;
 
     Ok(Json(json!({ "shares": shares })))
 }
@@ -68,19 +70,27 @@ pub async fn create(
         requested.map(|d| now + chrono::Duration::days(d))
     };
 
-    let share = sqlx::query_as::<_, Share>(
-        r#"INSERT INTO photos.shares (owner_id, photo_id, album_id, token, expires_at)
-           VALUES ($1, $2, $3, $4, $5)
-           RETURNING *"#,
-    )
-    .bind(user.id)
-    .bind(dto.photo_id)
-    .bind(dto.album_id)
-    .bind(&token)
-    .bind(expires_at)
-    .fetch_one(&state.db)
-    .await
-    .map_err(PhotosError::Database)?;
+    // The key is generated here and bound (no `RETURNING` on MySQL/SQLite); the
+    // inserted row is then read back by primary key.
+    let id = kubuno_db::new_id();
+    state
+        .db
+        .execute(
+            r#"INSERT INTO photos.shares (id, owner_id, photo_id, album_id, token, expires_at)
+               VALUES ($1, $2, $3, $4, $5, $6)"#,
+            params![id, user.id, dto.photo_id, dto.album_id, &token, expires_at],
+        )
+        .await
+        .map_err(PhotosError::Database)?;
+
+    let share = state
+        .db
+        .fetch_one_as::<Share>(
+            "SELECT * FROM photos.shares WHERE id = $1",
+            params![id],
+        )
+        .await
+        .map_err(PhotosError::Database)?;
 
     Ok((StatusCode::CREATED, Json(json!({ "share": share }))))
 }
@@ -90,15 +100,14 @@ pub async fn revoke(
     Extension(user): Extension<PhotosUser>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode> {
-    let rows = sqlx::query(
-        "DELETE FROM photos.shares WHERE id = $1 AND owner_id = $2",
-    )
-    .bind(id)
-    .bind(user.id)
-    .execute(&state.db)
-    .await
-    .map_err(PhotosError::Database)?
-    .rows_affected();
+    let rows = state
+        .db
+        .execute(
+            "DELETE FROM photos.shares WHERE id = $1 AND owner_id = $2",
+            params![id, user.id],
+        )
+        .await
+        .map_err(PhotosError::Database)?;
 
     if rows == 0 {
         return Err(PhotosError::NotFound(format!("Share {id}")));
