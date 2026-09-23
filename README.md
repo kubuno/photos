@@ -12,7 +12,7 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 ![Rust](https://img.shields.io/badge/Rust-edition_2021-orange.svg)
 ![React](https://img.shields.io/badge/React-19-61dafb.svg)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)
+![Database](https://img.shields.io/badge/database-PostgreSQL%20%7C%20MySQL%20%7C%20SQLite-336791.svg)
 ![Status](https://img.shields.io/badge/status-alpha-yellow.svg)
 ![Kubuno module](https://img.shields.io/badge/Kubuno-module-4D38DB.svg)
 
@@ -24,26 +24,33 @@ A module for [Kubuno](https://github.com/kubuno/core), the self-hosted, libre (A
 
 ---
 
-## ✨ Features
+## Screenshots
 
-- 🖼️ **Timeline gallery** — a responsive grid of your pictures with fast, on-demand thumbnails generated at import; a full-screen viewer serves a resized preview.
-- ⬆️ **Import** — upload photos with a configurable size ceiling enforced before any write to storage, and an accepted-formats policy (all image formats, or only the ones the module can decode: JPEG, PNG, WebP, GIF, TIFF).
-- 📚 **Albums** — organise photos into albums for grouping and browsing.
-- ❤️ **Favorites** — mark photos as favorites for a dedicated view.
-- 🗑️ **Trash** — deleted photos land in a trash that empties itself after a configurable retention window, or never.
-- ✂️ **Built-in editor** — adjust and edit a photo directly in the browser.
-- 🔗 **Sharing** — create public share links for photos and albums, with an instance-wide switch, a maximum lifetime, control over whether the original file can be downloaded, and a metadata guard that keeps capture date, camera and GPS coordinates private unless explicitly exposed.
-- ⚙️ **Admin controls** — thumbnail size and JPEG quality, full-screen preview size, upload limits, accepted formats, sharing policy and trash auto-deletion, all editable from the core admin console.
-- 📊 **Quota-aware** — imports respect the platform storage quota, and the module reports its usage back to the core.
+![The photo gallery, by month](.github/screenshots/photos-gallery.png)
 
-## 🏗️ Architecture
+<sub>The photo gallery, by month</sub>
+
+## Features
+
+- **Timeline gallery** — a responsive grid of your pictures with fast, on-demand thumbnails generated at import; a full-screen viewer serves a resized preview.
+- **Import** — upload photos with a configurable size ceiling enforced before any write to storage, and an accepted-formats policy (all image formats, or only the ones the module can decode: JPEG, PNG, WebP, GIF, TIFF).
+- **Albums** — organise photos into albums for grouping and browsing.
+- **Favorites** — mark photos as favorites for a dedicated view.
+- **Trash** — deleted photos land in a trash that empties itself after a configurable retention window, or never.
+- **Built-in editor** — rotate and flip a photo directly in the browser.
+- **Sharing** — create public share links for photos and albums, with an instance-wide switch, a maximum lifetime, control over whether the original file can be downloaded, and a metadata guard that keeps capture date, camera and GPS coordinates private unless explicitly exposed.
+- **Admin controls** — thumbnail size and JPEG quality, full-screen preview size, upload limits, accepted formats, sharing policy and trash auto-deletion, all editable from the core admin console.
+- **Quota-aware** — imports respect the platform storage quota, and the module reports its usage back to the core.
+- **Platform integration** — a "Photos" tab in the platform's image picker (so any module can insert a picture from your library), a recent-photos widget for the home page, the viewer used for images opened from other modules, and a Photos entry in the global New menu.
+
+## Architecture
 
 Photos is a **separate process** (a standalone Rust binary listening on port **3103**) that registers with the [core](https://github.com/kubuno/core) at startup. The core proxies its routes (`/api/v1/photos/*`), distributes platform events to it and manages its lifecycle; it also serves the module's runtime-loaded React frontend bundle through the host import map.
 
-- **Backend** — `src/`: Axum + SQLx (PostgreSQL, dedicated schema `photos`); migrations in `migrations/`. Proxied requests are authenticated from a signed `X-Kubuno-Auth` token minted by the core, never from plain forwarded headers.
+- **Backend** — `src/`: Axum on the shared `kubuno-db` layer, running on **PostgreSQL, MySQL/MariaDB or SQLite** (the engine is an administrator choice read at run time — one binary, no rebuild), in a dedicated `photos` schema; migrations for each engine in `migrations/`. Proxied requests are authenticated from a signed `X-Kubuno-Auth` token minted by the core, never from plain forwarded headers.
 - **Frontend** — `frontend/`: a React bundle built to `entry.js`, consuming `@kubuno/sdk`, `@kubuno/ui` (`@ui`) and `@kubuno/drive` from npm — resolved by the host at runtime via the import map, never re-bundled.
 
-## 📥 Install
+## Install
 
 A Kubuno module is distributed as a single **`.kbpkg`** — a portable package that the Kubuno server installs by itself, the same file on Linux, Windows and macOS. It is not a system service and ships in no other format.
 
@@ -54,9 +61,9 @@ sudo kubuno modules:install kubuno-photos-<version>-<os>-<arch>.kbpkg
 sudo systemctl restart kubuno            # the core loads the module on (re)start
 ```
 
-## 🛠️ Build & development
+## Build & development
 
-**Requirements:** Rust ≥ 1.82, Node.js ≥ 24, PostgreSQL 16.
+**Requirements:** Rust ≥ 1.82, Node.js ≥ 24, and a database: PostgreSQL 16, MySQL/MariaDB or SQLite.
 
 ```bash
 cargo build --release                      # → target/release/kubuno-photos
@@ -69,14 +76,14 @@ bash build_kbpkg.sh --install              # build, install into the module stor
 > - **Rust** — shared crates via tagged git dependencies on `kubuno/core`.
 > - **Frontend** — `@kubuno/sdk`, `@kubuno/ui`, `@kubuno/drive` from the `@kubuno` npm scope.
 
-## 📦 Tech stack
+## Tech stack
 
-Rust 2021 · Axum · Tokio · SQLx (PostgreSQL 16) — React 19 · TypeScript · Vite · Tailwind CSS v4 · Zustand · React Query.
+Rust 2021 · Axum · Tokio · `kubuno-db` over SQLx (PostgreSQL, MySQL/MariaDB or SQLite) — React 19 · TypeScript · Vite · Tailwind CSS v4 · Zustand · React Query.
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome. Please open an issue to discuss any significant change before submitting a pull request.
 
-## 📄 License
+## License
 
 [AGPL-3.0-or-later](LICENSE) © Kubuno contributors.
