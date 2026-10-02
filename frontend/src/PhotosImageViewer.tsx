@@ -1,4 +1,4 @@
-import { api, formatSize, bumpImageCache, useImageCacheStore } from '@kubuno/sdk'
+import { api, formatSize, bumpImageCache, useImageCacheStore, useSignedUrl, downloadSignedUrl } from '@kubuno/sdk'
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, X, ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
@@ -33,9 +33,9 @@ export default function PhotosImageViewer({ file, imageFiles, onClose }: Props) 
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [blobKey, setBlobKey] = useState(0)
   const thumbVer = useImageCacheStore(s => s.versions[current.id] ?? 0)
-  const thumbSrc = thumbVer
+  const thumbSrc = useSignedUrl(thumbVer
     ? `${thumbnailUrl(current.id)}?v=${thumbVer}`
-    : thumbnailUrl(current.id)
+    : thumbnailUrl(current.id))
 
   // Blob URL for high-quality view (authenticated). blobKey increments after each save.
   useEffect(() => {
@@ -105,7 +105,7 @@ export default function PhotosImageViewer({ file, imageFiles, onClose }: Props) 
               href={downloadUrl(current.id)}
               download={current.name}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
-              onClick={e => e.stopPropagation()}
+              onClick={e => { e.preventDefault(); e.stopPropagation(); void downloadSignedUrl(downloadUrl(current.id), current.name) }}
             >
               <Download size={14} />
               {t('photos_viewer_download')}
@@ -133,13 +133,15 @@ export default function PhotosImageViewer({ file, imageFiles, onClose }: Props) 
             </button>
           )}
 
-          <img
-            key={`${current.id}-${blobKey}`}
-            src={blobUrl ?? thumbSrc}
-            alt={current.name}
-            className="max-h-full max-w-full object-contain"
-            draggable={false}
-          />
+          {(blobUrl ?? thumbSrc) && (
+            <img
+              key={`${current.id}-${blobKey}`}
+              src={blobUrl ?? thumbSrc}
+              alt={current.name}
+              className="max-h-full max-w-full object-contain"
+              draggable={false}
+            />
+          )}
 
           {idx < imageFiles.length - 1 && (
             <button

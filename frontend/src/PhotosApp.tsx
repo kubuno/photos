@@ -1,4 +1,4 @@
-import { useConfirm, useAuthStore, api, bumpImageCache, useImageCacheStore, formatDate } from '@kubuno/sdk'
+import { useConfirm, useAuthStore, api, bumpImageCache, useImageCacheStore, formatDate, useSignedUrl, downloadSignedUrl } from '@kubuno/sdk'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { isCoarsePointer } from './openable'
 import { useTranslation } from 'react-i18next'
@@ -40,9 +40,9 @@ function PhotoCard({
   onTrash: (id: string) => void
 }) {
   const thumbVer = useImageCacheStore(s => s.versions[photo.id] ?? 0)
-  const thumbSrc = thumbVer
+  const thumbSrc = useSignedUrl(thumbVer
     ? `${photosApi.thumbnailUrl(photo.id)}?v=${thumbVer}`
-    : photosApi.thumbnailUrl(photo.id)
+    : photosApi.thumbnailUrl(photo.id))
 
   const isVideo    = photo.mime_type.startsWith('video/')
   const videoRef   = useRef<HTMLVideoElement>(null)
@@ -133,13 +133,15 @@ function PhotoCard({
       onMouseEnter={isVideo ? handleVideoMouseEnter : undefined}
       onMouseLeave={isVideo ? handleVideoMouseLeave : undefined}
     >
-      <img
-        src={thumbSrc}
-        alt={photo.original_name}
-        className={`w-full h-full object-cover pointer-events-none transition-opacity duration-200 ${videoPlaying ? 'opacity-0' : 'opacity-100'}`}
-        loading="lazy"
-        draggable={false}
-      />
+      {thumbSrc && (
+        <img
+          src={thumbSrc}
+          alt={photo.original_name}
+          className={`w-full h-full object-cover pointer-events-none transition-opacity duration-200 ${videoPlaying ? 'opacity-0' : 'opacity-100'}`}
+          loading="lazy"
+          draggable={false}
+        />
+      )}
       {isVideo && (
         <video
           ref={videoRef}
@@ -286,7 +288,7 @@ function PhotosLightbox({
               href={photosApi.downloadUrl(photo.id)}
               download={photo.original_name}
               className="hover:bg-white/10 p-2 rounded-full"
-              onClick={e => e.stopPropagation()}
+              onClick={e => { e.preventDefault(); e.stopPropagation(); void downloadSignedUrl(photosApi.downloadUrl(photo.id), photo.original_name) }}
             >
               <Download size={18} />
             </a>
@@ -360,11 +362,12 @@ function PhotosLightbox({
 // ── AlbumCard ─────────────────────────────────────────────────────────────────
 function AlbumCard({ album, onClick }: { album: Album; onClick: () => void }) {
   const { t } = useTranslation('photos')
+  const coverSrc = useSignedUrl(album.cover_photo_id ? photosApi.thumbnailUrl(album.cover_photo_id) : null)
   return (
     <div className="cursor-pointer group" onClick={onClick}>
       <div className="aspect-square rounded-xl bg-surface-2 overflow-hidden border border-border mb-2 group-hover:shadow-md transition-shadow flex items-center justify-center">
         {album.cover_photo_id
-          ? <img src={photosApi.thumbnailUrl(album.cover_photo_id)} alt={album.name} className="w-full h-full object-cover" />
+          ? (coverSrc && <img src={coverSrc} alt={album.name} className="w-full h-full object-cover" />)
           : <BookImage size={40} className="text-text-tertiary" />
         }
       </div>

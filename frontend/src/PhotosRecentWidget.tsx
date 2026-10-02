@@ -1,8 +1,21 @@
-import { DashboardWidget } from '@kubuno/sdk'
+import { DashboardWidget, useSignedUrl } from '@kubuno/sdk'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Image } from 'lucide-react'
 import { photosApi } from './api'
+
+function SignedThumb({ id, alt }: { id: string; alt: string }) {
+  const src = useSignedUrl(photosApi.thumbnailUrl(id))
+  if (!src) return null
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+      loading="lazy"
+    />
+  )
+}
 
 export default function PhotosRecentWidget() {
   const { t } = useTranslation('photos')
@@ -31,12 +44,7 @@ export default function PhotosRecentWidget() {
           {photos.map(p => (
             <div key={p.id} className="aspect-square bg-surface-2 overflow-hidden">
               {p.has_thumbnail ? (
-                <img
-                  src={`/api/v1/photos/${p.id}/thumbnail`}
-                  alt={p.original_name}
-                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
-                  loading="lazy"
-                />
+                <SignedThumb id={p.id} alt={p.original_name} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <Image size={20} className="text-text-tertiary" />

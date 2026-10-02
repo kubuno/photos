@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { photosApi, type Photo } from './api'
-import type { ImageSourceProps } from '@kubuno/sdk'
+import { useSignedUrl, type ImageSourceProps } from '@kubuno/sdk'
 
 /**
  * The "Photos" tab of the core image picker. Registered by this module, so the
@@ -25,6 +25,12 @@ function groupByDay(photos: Photo[]): Array<{ day: string; label: string; photos
   return [...buckets.entries()]
     .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([day, v]) => ({ day, ...v }))
+}
+
+function SignedThumb({ id, alt }: { id: string; alt: string }) {
+  const src = useSignedUrl(photosApi.thumbnailUrl(id))
+  if (!src) return null
+  return <img src={src} alt={alt} loading="lazy" className="w-full h-full object-cover" />
 }
 
 export default function PhotosImageSource({ onPick, query }: ImageSourceProps) {
@@ -72,8 +78,7 @@ export default function PhotosImageSource({ onPick, query }: ImageSourceProps) {
                   style={{ width: `${Math.max(64, Math.min(220, 120 * ratio))}px` }}
                   className="h-[120px] shrink-0 rounded-lg overflow-hidden bg-surface-2 hover:opacity-80 transition-opacity"
                 >
-                  <img src={photosApi.thumbnailUrl(p.id)} alt={p.original_name}
-                    loading="lazy" className="w-full h-full object-cover" />
+                  <SignedThumb id={p.id} alt={p.original_name} />
                 </button>
               )
             })}
