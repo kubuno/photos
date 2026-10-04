@@ -40,7 +40,19 @@ use crate::{
     state::AppState,
 };
 
+/// The share behind `token`, when it may still be served: every check runs on
+/// EVERY request (not only when the link was made), and every refusal is the same
+/// 404, so a visitor cannot tell an expired link from a revoked one or from a
+/// photo the owner has since moved to the trash.
 async fn get_valid_share(state: &AppState, token: &str) -> Result<Share> {
+    // The instance switch applies to links already handed out too: turning
+    // public sharing off disables every existing link at once.
+    if !state.instance().allow_public_sharing {
+        return Err(not_found());
+    }
+    if token.is_empty() || token.len() > 128 {
+        return Err(not_found());
+    }
     let share = state
         .db
         .fetch_optional_as::<Share>(
@@ -49,29 +61,37 @@ async fn get_valid_share(state: &AppState, token: &str) -> Result<Share> {
         )
         .await
         .map_err(|e| {
-            tracing::error!(error = %e, "Lecture d'un partage public échouée");
+            tracing::error!(error = %e, "reading a public share failed");
             PhotosError::Database(e)
         })?
-        .ok_or_else(|| PhotosError::NotFound("Partage introuvable".into()))?;
+        .ok_or_else(not_found)?;
 
-    if let Some(exp) = share.expires_at {
-        if exp < chrono::Utc::now() {
-            return Err(PhotosError::Forbidden);
-        }
+    if !share_is_live(&share, chrono::Utc::now()) {
+        return Err(not_found());
     }
 
     Ok(share)
 }
 
-/// The shared photo, or a validation error for an album share (never served).
-async fn shared_photo(state: &AppState, share: &Share) -> Result<Photo> {
-    let photo_id = share.photo_id
-        .ok_or_else(|| PhotosError::Validation("Ce partage concerne un album, pas une photo".into()))?;
+/// The single answer for a link that cannot be served, whatever the reason.
+fn not_found() -> PhotosError {
+    PhotosError::NotFound("Partage introuvable".into())
+}
 
-    photo_service::get_photo(&state.db, photo_id, share.owner_id)
+/// Whether a share row is still valid at `now` (its expiry, if any, not passed).
+pub fn share_is_live(share: &Share, now: chrono::DateTime<chrono::Utc>) -> bool {
+    share.expires_at.is_none_or(|exp| exp > now)
+}
+
+/// The shared photo. An album share (never served here), a photo the owner has
+/// moved to the trash or deleted, all answer the same 404 as an unknown link.
+async fn shared_photo(state: &AppState, share: &Share) -> Result<Photo> {
+    let photo_id = share.photo_id.ok_or_else(not_found)?;
+
+    photo_service::get_shared_photo(&state.db, photo_id, share.owner_id)
         .await
         .map_err(PhotosError::Internal)?
-        .ok_or_else(|| PhotosError::NotFound("Photo introuvable".into()))
+        .ok_or_else(not_found)
 }
 
 pub async fn info(
@@ -80,15 +100,24 @@ pub async fn info(
 ) -> Result<Json<Value>> {
     let share = get_valid_share(&state, &token).await?;
     let inst  = state.instance();
+    // A link whose photo is gone or trashed is not a link any more.
+    let photo = shared_photo(&state, &share).await?;
 
     // The recipient is told what they may do BEFORE trying: a download button
     // that answers 403 is worse than one that was never shown.
+    // The share is projected: its owner's account id is nobody's business.
     let mut body = json!({
-        "share":        share,
+        "share": {
+            "token":      share.token,
+            "photo_id":   share.photo_id,
+            "expires_at": share.expires_at,
+            "created_at": share.created_at,
+        },
         "can_download": inst.share_allow_download,
     });
 
-    if let Ok(photo) = shared_photo(&state, &share).await {
+    {
+        // What the recipient sees of the photo itself.
         let mut projection = json!({
             "id":            photo.id,
             "original_name": photo.original_name,
@@ -176,4 +205,31 @@ pub async fn download(
         )
         .body(Body::from(data))
         .map_err(|e| PhotosError::Internal(e.into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{Duration, Utc};
+
+    fn share(expires_in_hours: Option<i64>) -> Share {
+        let now = Utc::now();
+        Share {
+            id: uuid::Uuid::new_v4(),
+            owner_id: uuid::Uuid::new_v4(),
+            photo_id: Some(uuid::Uuid::new_v4()),
+            album_id: None,
+            token: "t".into(),
+            expires_at: expires_in_hours.map(|h| now + Duration::hours(h)),
+            created_at: now,
+        }
+    }
+
+    #[test]
+    fn an_expired_share_is_not_live() {
+        let now = Utc::now();
+        assert!(share_is_live(&share(None), now));
+        assert!(share_is_live(&share(Some(1)), now));
+        assert!(!share_is_live(&share(Some(-1)), now));
+    }
 }

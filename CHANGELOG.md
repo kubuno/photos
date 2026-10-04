@@ -39,6 +39,10 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ### Security
 
+- **A share link no longer serves a photo that is in the trash.** Moving a photo to the trash closes its public links at once (restoring it reopens them); before, the link kept showing and downloading the photo until the trash was emptied.
+- **Turning public sharing off now disables the links already handed out**, not only the creation of new ones.
+- **A link that cannot be served answers the same "not found" whatever the reason** (unknown, expired, trashed photo, album link, sharing off), and the public link page no longer discloses the owner's account id.
+
 - **Thumbnails, album covers, the viewer and downloads no longer rely on the access-token cookie the web
   client used to keep readable by page scripts**; they load with short-lived signed tickets. Requires a Kubuno core that issues signed tickets (`POST /api/v1/auth/tickets`) and `@kubuno/sdk` with the signed-URL helpers.
 - **Security fixes from the shared database layer (kubuno-db 0.9.0).** The

@@ -25,7 +25,7 @@ use kubuno_photos::services::album_service::{
     add_photos, create_album, delete_album, get_album, list_albums, remove_photo, update_album,
 };
 use kubuno_photos::services::photo_service::{
-    delete_photo, get_photo, list_photos, restore_photo, trash_photo, update_photo,
+    delete_photo, get_photo, get_shared_photo, list_photos, restore_photo, trash_photo, update_photo,
 };
 use kubuno_photos::SCHEMA;
 use kubuno_storage::{LocalStorage, StorageBackend};
@@ -256,8 +256,14 @@ async fn full_suite(pool: &DbPool) {
         .is_none(), "a wrong owner updates nothing");
 
     // ── trash / restore ──
+    assert!(get_shared_photo(pool, live, owner).await.unwrap().is_some(), "a live photo is servable by its link");
+    assert!(get_shared_photo(pool, live, Uuid::new_v4()).await.unwrap().is_none(), "only the share owner's photo");
     assert!(trash_photo(pool, live, owner).await.unwrap());
     assert!(get_photo(pool, live, owner).await.unwrap().unwrap().is_trashed);
+    assert!(
+        get_shared_photo(pool, live, owner).await.unwrap().is_none(),
+        "a trashed photo is no longer served by a share link"
+    );
     assert!(!trash_photo(pool, live, owner).await.unwrap(), "already trashed");
     assert!(restore_photo(pool, live, owner).await.unwrap());
     assert!(!get_photo(pool, live, owner).await.unwrap().unwrap().is_trashed);

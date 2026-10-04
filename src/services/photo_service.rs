@@ -114,6 +114,18 @@ pub async fn get_photo(db: &DbPool, id: Uuid, owner_id: Uuid) -> Result<Option<P
     Ok(photo)
 }
 
+/// The photo a public share link may serve: the owner's, and not in the trash.
+/// A trashed photo is filtered in SQL, so a link handed out before the photo was
+/// trashed stops working at once (and works again if the photo is restored).
+pub async fn get_shared_photo(db: &DbPool, id: Uuid, owner_id: Uuid) -> Result<Option<Photo>> {
+    db.fetch_optional_as::<Photo>(
+        "SELECT * FROM photos.photos WHERE id = $1 AND owner_id = $2 AND is_trashed = $3",
+        params![id, owner_id, false],
+    )
+    .await
+    .context("get_shared_photo")
+}
+
 /// Upload et enregistre une photo.
 /// The knobs an administrator turns for uploads. They travel together —
 /// they all come from the same instance settings and are all read on the same
