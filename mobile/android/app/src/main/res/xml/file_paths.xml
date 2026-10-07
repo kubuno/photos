@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The camera app writes each capture into cacheDir/captures before we read
+     and upload it. Only that subfolder is exposed through the FileProvider. -->
+<paths>
+    <cache-path name="captures" path="captures/" />
+    <!-- Originals downloaded for the share sheet. -->
+    <cache-path name="shared" path="shared/" />
+</paths>
