@@ -12,6 +12,13 @@ number at release time, and CI publishes that section as the GitHub Release note
 ### Added
 - **Mobile app**: the Kubuno Photos Android app now lives in this repository under `mobile/` (moved from the `kubuno/mobile` repository with its history). It builds on its own against the shared Kubuno mobile libraries published from the core (`com.kubuno.mobile:*`), and a `mobile-v<version>` tag releases its APK (workflow `mobile.yml`).
 
+### Changed
+
+- **The repository is organised by platform.** The server (its sources, migrations, tests and configuration
+  example) moves to `server/` and the web frontend to `web/`, with their history. The `.kbpkg` is unchanged
+  (same files, same contents); the build script, the CI workflows, the Makefile and the Visual Studio solution
+  follow.
+
 ## [0.1.9] - 2026-10-05
 
 ### Changed

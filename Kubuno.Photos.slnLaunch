@@ -3,11 +3,11 @@
     "Name": "Photos (Kubuno Core + browser)",
     "Projects": [
       {
-        "Path": "Kubuno.Photos.Server.rsproj",
+        "Path": "server\\Kubuno.Photos.Server.rsproj",
         "Action": "Start"
       },
       {
-        "Path": "frontend\\Kubuno.Photos.Web.esproj",
+        "Path": "web\\Kubuno.Photos.Web.esproj",
         "Action": "Start"
       }
     ]
