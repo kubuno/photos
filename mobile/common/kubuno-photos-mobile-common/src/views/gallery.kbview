@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Photos · Gallery — the main Photos tab (PhotosTabContent + TopBar + NavPill) from PhotosApp.kt / PhotoGrid.kt.
+  A top bar (title + account avatar), a date-sectioned square-tile grid (DAY density = 4 columns, 2px gaps;
+  real thumbnails on the web surface, coloured placeholders on the device renderer), and the floating bottom
+  NavPill (Photos / Albums / Créer) with a detached round search button. Light theme, logical px (~390 wide).
+-->
+<Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"
+       Layout="Dock" BackColor="#FFFFFF">
+
+  <Stack Dock="Top" Direction="LeftToRight" CrossAlign="Center" Gap="8" Padding="16, 10, 16, 10" BackColor="#FFFFFF">
+    <Label Stack.Fill="true" Text="Photos" Role="Title" FontWeight="SemiBold" ForeColor="#202124"/>
+    <Avatar DisplayName="Camille Martin" AvatarSize="34" Tint="Accent"/>
+  </Stack>
+
+  <!-- Floating bottom nav pill + detached round search button (Photos active) -->
+  <Stack Dock="Bottom" CrossAlign="Center" Padding="0, 6, 0, 12">
+    <Stack Direction="LeftToRight" CrossAlign="Center" Gap="10">
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="4" BackColor="#FFFFFF" CornerRadius="9999"
+             Elevation="Lg" Padding="8, 6, 8, 6">
+        <Stack Direction="LeftToRight" CrossAlign="Center" Gap="6" BackColor="#E8F0FE" CornerRadius="9999"
+               Padding="14, 8, 14, 8">
+          <Icon Name="Images" Size="22" ForeColor="#1A73E8"/>
+          <Label Text="Photos" Role="Caption" FontWeight="SemiBold" ForeColor="#1A73E8"/>
+        </Stack>
+        <Stack CrossAlign="Center" Justify="Center" Padding="14, 8, 14, 8">
+          <Icon Name="Layers" Size="22" ForeColor="#5F6368"/>
+        </Stack>
+        <Stack CrossAlign="Center" Justify="Center" Padding="14, 8, 14, 8">
+          <Icon Name="CirclePlus" Size="22" ForeColor="#5F6368"/>
+        </Stack>
+      </Stack>
+      <Stack CrossAlign="Center" Justify="Center" BackColor="#FFFFFF" CornerRadius="9999" Elevation="Lg"
+             Width="52" Height="52">
+        <Icon Name="Search" Size="22" ForeColor="#202124"/>
+      </Stack>
+    </Stack>
+  </Stack>
+
+  <ScrollArea Dock="Fill">
+    <Stack Gap="2" Padding="2, 4, 2, 12">
+
+      <Label Text="Aujourd'hui" Role="Body" FontWeight="SemiBold" ForeColor="#202124" Padding="8, 12, 8, 8"/>
+      <Stack Direction="LeftToRight" Gap="2">
+        <Stack Stack.Fill="true" Height="90" Image="p01" BackColor="#D7E3F7"/>
+        <Stack Stack.Fill="true" Height="90" Image="p02" BackColor="#E7D9C7" CrossAlign="Center" Justify="Center">
+          <Icon Name="CirclePlay" Size="34" ForeColor="#FFFFFF"/>
+        </Stack>
+        <Stack Stack.Fill="true" Height="90" Image="p03" BackColor="#CFE4D4"/>
+        <Stack Stack.Fill="true" Height="90" Image="p04" BackColor="#EBD6DB"/>
+      </Stack>
+      <Stack Direction="LeftToRight" Gap="2">
+        <Stack Stack.Fill="true" Height="90" Image="p05" BackColor="#D9D4E8"/>
+        <Stack Stack.Fill="true" Height="90" Image="p06" BackColor="#D5E6E8"/>
+        <Stack Stack.Fill="true" Height="90" Image="p07" BackColor="#E8E1CE"/>
+        <Stack Stack.Fill="true" Height="90" Image="p08" BackColor="#DCDEE3"/>
+      </Stack>
+
+      <Label Text="Hier" Role="Body" FontWeight="SemiBold" ForeColor="#202124" Padding="8, 16, 8, 8"/>
+      <Stack Direction="LeftToRight" Gap="2">
+        <Stack Stack.Fill="true" Height="90" Image="p09" BackColor="#CFE4D4"/>
+        <Stack Stack.Fill="true" Height="90" Image="p10" BackColor="#EBD6DB"/>
+        <Stack Stack.Fill="true" Height="90" Image="p11" BackColor="#D7E3F7"/>
+        <Stack Stack.Fill="true" Height="90" Image="p12" BackColor="#E8E1CE"/>
+      </Stack>
+      <Stack Direction="LeftToRight" Gap="2">
+        <Stack Stack.Fill="true" Height="90" Image="p01" BackColor="#D5E6E8"/>
+        <Stack Stack.Fill="true" Height="90" Image="p02" BackColor="#D9D4E8"/>
+        <Stack Stack.Fill="true" Height="90" Image="p03" BackColor="#E7D9C7"/>
+        <Stack Stack.Fill="true" Height="90" Image="p04" BackColor="#DCDEE3"/>
+      </Stack>
+
+      <Label Text="jeudi 9 octobre" Role="Body" FontWeight="SemiBold" ForeColor="#202124" Padding="8, 16, 8, 8"/>
+      <Stack Direction="LeftToRight" Gap="2">
+        <Stack Stack.Fill="true" Height="90" Image="p05" BackColor="#EBD6DB"/>
+        <Stack Stack.Fill="true" Height="90" Image="p06" BackColor="#D7E3F7"/>
+        <Stack Stack.Fill="true" Height="90" Image="p07" BackColor="#CFE4D4"/>
+        <Stack Stack.Fill="true" Height="90" Image="p08" BackColor="#D5E6E8"/>
+      </Stack>
+
+    </Stack>
+  </ScrollArea>
+
+
+</Panel>

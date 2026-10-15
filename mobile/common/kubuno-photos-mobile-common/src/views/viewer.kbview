@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Photos · Viewer — the full-screen viewer (PhotoViewer.kt). Black backdrop, a translucent top bar (back +
+  glance date/time + info) and a bottom action bar (Partager / Favori / Supprimer). The photo itself is the
+  real preview on the web surface; on the device renderer the centre is a dark placeholder. Logical px.
+-->
+<Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"
+       Layout="Dock" BackColor="#000000">
+
+  <Stack Dock="Top" Direction="LeftToRight" CrossAlign="Center" Gap="4" Height="56" Padding="4, 0, 4, 0" BackColor="#1C1C1C">
+    <IconButton Icon="ArrowLeft" Diameter="44" IconSize="22" IconColor="#FFFFFF"/>
+    <Stack Stack.Fill="true" Gap="1">
+      <Label Text="jeu. 9 octobre 2026" Role="Meta" FontWeight="SemiBold" ForeColor="#FFFFFF"/>
+      <Label Text="14:05" Role="Caption" ForeColor="#C8C8C8"/>
+    </Stack>
+    <IconButton Icon="Info" Diameter="44" IconSize="22" IconColor="#FFFFFF"/>
+  </Stack>
+
+  <Stack Dock="Bottom" Direction="LeftToRight" CrossAlign="Center" Justify="SpaceBetween" Padding="24, 10, 24, 14" BackColor="#1C1C1C">
+    <Stack CrossAlign="Center" Gap="2">
+      <Icon Name="Share" Size="22" ForeColor="#FFFFFF"/>
+      <Label Text="Partager" Role="Caption" ForeColor="#FFFFFF"/>
+    </Stack>
+    <Stack CrossAlign="Center" Gap="2">
+      <Icon Name="Star" Size="22" ForeColor="#FFFFFF"/>
+      <Label Text="Favori" Role="Caption" ForeColor="#FFFFFF"/>
+    </Stack>
+    <Stack CrossAlign="Center" Gap="2">
+      <Icon Name="Trash2" Size="22" ForeColor="#FFFFFF"/>
+      <Label Text="Supprimer" Role="Caption" ForeColor="#FFFFFF"/>
+    </Stack>
+  </Stack>
+
+  <Stack Dock="Fill" BackColor="#000000" Image="hero1"/>
+
+</Panel>

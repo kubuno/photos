@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Photos · Search — the full-screen search overlay (SearchScreen.kt). A search header (back + field), a row
+  of category chips (Favoris / Vidéos / Corbeille; Favoris active) and a date-sectioned result grid reusing
+  the gallery tiles. Light theme, logical px (~390 wide). Screen root is a Panel.
+-->
+<Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"
+       Layout="Dock" BackColor="#FFFFFF">
+
+  <Stack Dock="Top">
+    <Stack Direction="LeftToRight" CrossAlign="Center" Gap="4" Height="56" Padding="8, 0, 12, 0" BackColor="#FFFFFF">
+      <IconButton Icon="ArrowLeft" Diameter="40" IconSize="22" IconColor="#5F6368"/>
+      <SearchField Stack.Fill="true" Placeholder="Rechercher dans les photos" Text="plage"/>
+    </Stack>
+
+    <Stack Direction="LeftToRight" CrossAlign="Center" Gap="8" Padding="16, 4, 16, 8">
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="6" BackColor="#E8F0FE" CornerRadius="9999" Padding="12, 6, 12, 6">
+        <Icon Name="Star" Size="18" ForeColor="#1A73E8"/>
+        <Label Text="Favoris" Role="Caption" ForeColor="#1A73E8"/>
+      </Stack>
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="6" BackColor="#F1F3F4" CornerRadius="9999" Padding="12, 6, 12, 6">
+        <Icon Name="Video" Size="18" ForeColor="#5F6368"/>
+        <Label Text="Vidéos" Role="Caption" ForeColor="#5F6368"/>
+      </Stack>
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="6" BackColor="#F1F3F4" CornerRadius="9999" Padding="12, 6, 12, 6">
+        <Icon Name="Trash2" Size="18" ForeColor="#5F6368"/>
+        <Label Text="Corbeille" Role="Caption" ForeColor="#5F6368"/>
+      </Stack>
+    </Stack>
+    <Separator/>
+  </Stack>
+
+  <ScrollArea Dock="Fill">
+    <Stack Gap="2" Padding="2, 6, 2, 24">
+      <Stack Direction="LeftToRight" Gap="2">
+        <Stack Stack.Fill="true" Height="90" Image="p01" BackColor="#D7E3F7"/>
+        <Stack Stack.Fill="true" Height="90" Image="p02" BackColor="#D5E6E8"/>
+        <Stack Stack.Fill="true" Height="90" Image="p03" BackColor="#CFE4D4"/>
+        <Stack Stack.Fill="true" Height="90" Image="p04" BackColor="#E7D9C7"/>
+      </Stack>
+      <Stack Direction="LeftToRight" Gap="2">
+        <Stack Stack.Fill="true" Height="90" Image="p05" BackColor="#EBD6DB"/>
+        <Stack Stack.Fill="true" Height="90" Image="p06" BackColor="#D9D4E8"/>
+        <Stack Stack.Fill="true" Height="90" Image="p07" BackColor="#D7E3F7"/>
+        <Stack Stack.Fill="true" Height="90" Image="p08" BackColor="#D5E6E8"/>
+      </Stack>
+    </Stack>
+  </ScrollArea>
+
+</Panel>

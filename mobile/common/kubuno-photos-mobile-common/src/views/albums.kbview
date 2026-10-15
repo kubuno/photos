@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Photos · Albums — the Collections tab (CollectionsTabContent) from PhotosApp.kt. The "Albums" title and a
+  2-column grid of AlbumCard (square cover + name + item count), with the floating bottom NavPill (Albums
+  active). Covers are coloured placeholders on the device renderer. Light theme, logical px (~390 wide).
+-->
+<Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"
+       Layout="Dock" BackColor="#FFFFFF">
+
+  <Stack Dock="Top">
+    <Label Text="Albums" Role="Title" FontWeight="SemiBold" ForeColor="#202124" Padding="16, 16, 16, 8"/>
+  </Stack>
+
+  <!-- Floating bottom nav pill + detached round search button (Albums active) -->
+  <Stack Dock="Bottom" CrossAlign="Center" Padding="0, 6, 0, 12">
+    <Stack Direction="LeftToRight" CrossAlign="Center" Gap="10">
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="4" BackColor="#FFFFFF" CornerRadius="9999"
+             Elevation="Lg" Padding="8, 6, 8, 6">
+        <Stack CrossAlign="Center" Justify="Center" Padding="14, 8, 14, 8">
+          <Icon Name="Images" Size="22" ForeColor="#5F6368"/>
+        </Stack>
+        <Stack Direction="LeftToRight" CrossAlign="Center" Gap="6" BackColor="#E8F0FE" CornerRadius="9999"
+               Padding="14, 8, 14, 8">
+          <Icon Name="Layers" Size="22" ForeColor="#1A73E8"/>
+          <Label Text="Albums" Role="Caption" FontWeight="SemiBold" ForeColor="#1A73E8"/>
+        </Stack>
+        <Stack CrossAlign="Center" Justify="Center" Padding="14, 8, 14, 8">
+          <Icon Name="CirclePlus" Size="22" ForeColor="#5F6368"/>
+        </Stack>
+      </Stack>
+      <Stack CrossAlign="Center" Justify="Center" BackColor="#FFFFFF" CornerRadius="9999" Elevation="Lg"
+             Width="52" Height="52">
+        <Icon Name="Search" Size="22" ForeColor="#202124"/>
+      </Stack>
+    </Stack>
+  </Stack>
+
+  <ScrollArea Dock="Fill">
+    <Stack Gap="12" Padding="12, 4, 12, 12">
+
+      <Stack Direction="LeftToRight" Gap="12">
+        <Stack Stack.Fill="true" Gap="6">
+          <Stack Height="162" BackColor="#E0E0E0" CornerRadius="8" Image="hero2"/>
+          <Label Text="Vacances 2026" Role="Body" FontWeight="Medium" ForeColor="#202124" Overflow="Ellipsis" Padding="4, 0, 0, 0"/>
+          <Label Text="128 éléments" Role="Meta" ForeColor="#5F6368" Padding="4, 0, 0, 0"/>
+        </Stack>
+        <Stack Stack.Fill="true" Gap="6">
+          <Stack Height="162" BackColor="#E0E0E0" CornerRadius="8" Image="p06"/>
+          <Label Text="Famille" Role="Body" FontWeight="Medium" ForeColor="#202124" Overflow="Ellipsis" Padding="4, 0, 0, 0"/>
+          <Label Text="64 éléments" Role="Meta" ForeColor="#5F6368" Padding="4, 0, 0, 0"/>
+        </Stack>
+      </Stack>
+
+      <Stack Direction="LeftToRight" Gap="12">
+        <Stack Stack.Fill="true" Gap="6">
+          <Stack Height="162" BackColor="#E0E0E0" CornerRadius="8" Image="p08"/>
+          <Label Text="Anniversaire de Léa" Role="Body" FontWeight="Medium" ForeColor="#202124" Overflow="Ellipsis" Padding="4, 0, 0, 0"/>
+          <Label Text="42 éléments" Role="Meta" ForeColor="#5F6368" Padding="4, 0, 0, 0"/>
+        </Stack>
+        <Stack Stack.Fill="true" Gap="6">
+          <Stack Height="162" BackColor="#E0E0E0" CornerRadius="8" Image="p12"/>
+          <Label Text="Randonnées" Role="Body" FontWeight="Medium" ForeColor="#202124" Overflow="Ellipsis" Padding="4, 0, 0, 0"/>
+          <Label Text="31 éléments" Role="Meta" ForeColor="#5F6368" Padding="4, 0, 0, 0"/>
+        </Stack>
+      </Stack>
+
+    </Stack>
+  </ScrollArea>
+
+
+</Panel>

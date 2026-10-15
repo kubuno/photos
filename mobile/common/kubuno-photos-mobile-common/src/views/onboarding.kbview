@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Photos · Onboarding — converted from OnboardingScreen.kt. A centred welcome card over the surfaceVariant
+  backdrop: big accent avatar, the signed-in account, the auto-backup toggle and the start button. Shared
+  vocabulary, light theme, logical px (~390 wide). Screen root is a Panel. The card stretches its children so
+  long text wraps and the toggle row fills the width; avatar / name / button are re-centred in sub-stacks.
+-->
+<Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"
+       Layout="Dock" BackColor="#F1F3F4">
+
+  <Stack Dock="Fill" CrossAlign="Center" Justify="Center" Padding="20, 20, 20, 20">
+    <Stack Width="336" BackColor="#FFFFFF" CornerRadius="8" Elevation="Lg" CrossAlign="Stretch" Gap="16"
+           Padding="28, 32, 28, 32">
+
+      <Label Text="Commencez à utiliser la sauvegarde Kubuno Photos" Role="Title" FontWeight="SemiBold"
+             ForeColor="#202124" TextAlign="TopCenter" Overflow="Wrap"/>
+
+      <Stack CrossAlign="Center">
+        <Avatar DisplayName="Camille Martin" AvatarSize="96" Tint="Accent"/>
+      </Stack>
+
+      <Stack CrossAlign="Center" Gap="4">
+        <Label Text="Camille Martin" Role="Subtitle" FontWeight="SemiBold" ForeColor="#202124"/>
+        <Label Text="camille@kubuno.com" Role="Body" ForeColor="#5F6368"/>
+      </Stack>
+
+      <Label Text="Protégez vos souvenirs en sauvegardant vos photos et vidéos de façon sécurisée."
+             Role="Body" ForeColor="#5F6368" TextAlign="TopCenter" Overflow="Wrap"/>
+
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="16" Padding="0, 12, 0, 0">
+        <Label Stack.Fill="true" Text="Sauvegarder automatiquement les photos et vidéos de cet appareil"
+               Role="Body" ForeColor="#202124" Overflow="Wrap"/>
+        <Switch On="true"/>
+      </Stack>
+
+      <Stack CrossAlign="Center">
+        <Button Text="C'est parti" Variant="Primary" Size="Lg"/>
+      </Stack>
+
+      <Label Text="Vous pouvez modifier vos paramètres de sauvegarde à tout moment." Role="Meta"
+             ForeColor="#80868B" TextAlign="TopCenter" Overflow="Wrap"/>
+
+    </Stack>
+  </Stack>
+
+</Panel>

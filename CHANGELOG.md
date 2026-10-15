@@ -14,6 +14,15 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ### Changed
 
+- **The mobile app moves to Kubuno views (Rust), laid out like the desktop app.** `mobile/` is now a Cargo
+  workspace: `common/kubuno-photos-mobile-common` (the app's `.kbview` screens, edited in Visual Studio, and the sample photos they show),
+  `android/kubuno-photos-mobile-android` (the APK — package `com.kubuno.photos`, launcher icon = the module's web logo)
+  and `ios/kubuno-photos-mobile-ios`, shown in the Visual Studio solution under `Mobile/Common`, `Mobile/Android` and
+  `Mobile/iOS`. The screens used to live inside the core's mobile renderer; they are now the module's own, rendered
+  and run by the shared Kubuno mobile renderer and Android / iOS shells of the core. The previous Photos
+  Kotlin/Jetpack Compose app is retired from `mobile/` — it stays in the git history as the functional reference for
+  migrating the app's behaviour (data, server calls), which is still to come. The `mobile` workflow builds the new
+  APK with cargo-apk.
 - **The repository is organised by platform.** The server (its sources, migrations, tests and configuration
   example) moves to `server/` and the web frontend to `web/`, with their history. The `.kbpkg` is unchanged
   (same files, same contents); the build script, the CI workflows, the Makefile and the Visual Studio solution

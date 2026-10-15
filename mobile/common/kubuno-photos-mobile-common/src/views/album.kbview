@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Photos · Album — the full-screen album view (PhotosApp.kt → AlbumScreen, normal mode). A top bar (back +
+  album name + overflow) over a date-sectioned square-tile grid reusing the gallery tiles. Light theme,
+  logical px (~390 wide). Screen root is a Panel.
+-->
+<Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"
+       Layout="Dock" BackColor="#FFFFFF">
+
+  <Stack Dock="Top" Direction="LeftToRight" CrossAlign="Center" Gap="4" Height="56" Padding="4, 0, 4, 0" BackColor="#FFFFFF">
+    <IconButton Icon="ArrowLeft" Diameter="44" IconSize="22" IconColor="#5F6368"/>
+    <Label Stack.Fill="true" Text="Vacances 2026" Role="Title" FontWeight="SemiBold" ForeColor="#202124" Overflow="Ellipsis" Padding="4, 0, 0, 0"/>
+    <IconButton Icon="MoreVertical" Diameter="44" IconSize="22" IconColor="#5F6368"/>
+  </Stack>
+
+  <ScrollArea Dock="Fill">
+    <Stack Gap="2" Padding="2, 6, 2, 24">
+
+      <Stack Direction="LeftToRight" Gap="2">
+        <Stack Stack.Fill="true" Height="90" Image="p01" BackColor="#D7E3F7"/>
+        <Stack Stack.Fill="true" Height="90" Image="p02" BackColor="#CFE4D4"/>
+        <Stack Stack.Fill="true" Height="90" Image="p03" BackColor="#E7D9C7" CrossAlign="Center" Justify="Center">
+          <Icon Name="CirclePlay" Size="34" ForeColor="#FFFFFF"/>
+        </Stack>
+        <Stack Stack.Fill="true" Height="90" Image="p04" BackColor="#EBD6DB"/>
+      </Stack>
+      <Stack Direction="LeftToRight" Gap="2">
+        <Stack Stack.Fill="true" Height="90" Image="p05" BackColor="#D5E6E8"/>
+        <Stack Stack.Fill="true" Height="90" Image="p06" BackColor="#D9D4E8"/>
+        <Stack Stack.Fill="true" Height="90" Image="p07" BackColor="#E8E1CE"/>
+        <Stack Stack.Fill="true" Height="90" Image="p08" BackColor="#DCDEE3"/>
+      </Stack>
+      <Stack Direction="LeftToRight" Gap="2">
+        <Stack Stack.Fill="true" Height="90" Image="p09" BackColor="#CFE4D4"/>
+        <Stack Stack.Fill="true" Height="90" Image="p10" BackColor="#D7E3F7"/>
+        <Stack Stack.Fill="true" Height="90" Image="p11" BackColor="#EBD6DB"/>
+        <Stack Stack.Fill="true" Height="90" Image="p12" BackColor="#D5E6E8"/>
+      </Stack>
+
+    </Stack>
+  </ScrollArea>
+
+</Panel>
