@@ -20,7 +20,7 @@ pub async fn list_photos(
     let backend = db.backend();
 
     // `NULLS LAST` has no portable spelling (MySQL rejects the syntax), so the
-    // null-last order is expressed as `(taken_at IS NULL)` — a 0/1 sort key on
+    // null-last order is expressed as `(taken_at IS NULL)` - a 0/1 sort key on
     // every engine.
     let photos = if q.trashed == Some(true) {
         db.fetch_all_as::<Photo>(
@@ -127,9 +127,9 @@ pub async fn get_shared_photo(db: &DbPool, id: Uuid, owner_id: Uuid) -> Result<O
 }
 
 /// Upload et enregistre une photo.
-/// The knobs an administrator turns for uploads. They travel together —
+/// The knobs an administrator turns for uploads. They travel together -
 /// they all come from the same instance settings and are all read on the same
-/// path — so they are passed as one value rather than as five positional
+/// path - so they are passed as one value rather than as five positional
 /// arguments a caller could silently transpose.
 pub struct UploadLimits {
     pub max_bytes: u64,
@@ -184,7 +184,7 @@ pub async fn upload_photo(
         storage, owner_id, id, &data, thumbnail_size, preview_size, quality,
     ).await;
     // A non-zero weight is exactly the proof the derivative was written, so the
-    // booleans are derived from it rather than tracked separately — the two can
+    // booleans are derived from it rather than tracked separately - the two can
     // never disagree.
     let has_thumbnail = thumbnail_bytes > 0;
     let has_preview   = preview_bytes > 0;
@@ -193,7 +193,7 @@ pub async fn upload_photo(
     // The key is generated here and bound explicitly (see `id` above): MySQL and
     // SQLite have no `RETURNING`, so a database-invented key could not be read
     // back. With the key known before the write, the insert is a plain statement
-    // and the row is read back by primary key — identical on the three engines.
+    // and the row is read back by primary key - identical on the three engines.
     // `metadata` is bound explicitly (an empty JSON object) rather than left to a
     // column DEFAULT: a non-NULL JSON default is spelled inconsistently across
     // the three engines, and the column decodes into a non-optional
@@ -300,7 +300,7 @@ pub async fn trash_photo(db: &DbPool, id: Uuid, owner_id: Uuid) -> anyhow::Resul
         .await
         .context("trash_photo")?;
 
-    // Trashing does not free a byte, it moves it from `content` to `trash` — two
+    // Trashing does not free a byte, it moves it from `content` to `trash` - two
     // separate lines the core bills together. Both change, so the account is
     // re-declared.
     if rows > 0 {
@@ -359,7 +359,7 @@ pub async fn delete_photo(
         let prev_path  = preview_path(owner_id, id);
         let _ = storage.delete(&thumb_path).await;
         let _ = storage.delete(&prev_path).await;
-        // A hard delete is the one operation that actually lowers the figure —
+        // A hard delete is the one operation that actually lowers the figure -
         // declaring it promptly is what stops a freed quota from looking used.
         crate::services::usage::mark_dirty(owner_id);
         Ok(true)
@@ -378,7 +378,7 @@ pub fn preview_path(owner_id: Uuid, photo_id: Uuid) -> String {
     format!("photos/{owner_id}/previews/{photo_id}.jpg")
 }
 
-/// Formats this build can actually decode — the only ones that get dimensions,
+/// Formats this build can actually decode - the only ones that get dimensions,
 /// a thumbnail and a preview. Kept in step with the `image` crate features
 /// declared in `Cargo.toml`.
 fn is_decodable_image_mime(mime: &str) -> bool {
@@ -390,14 +390,14 @@ fn is_decodable_image_mime(mime: &str) -> bool {
 
 /// Formats accepted at import. The undecodable ones (HEIC/HEIF/AVIF) are stored
 /// verbatim but stay without dimensions and without derivatives, which is why an
-/// instance may refuse them outright — see `accepted_formats` in `module.toml`.
+/// instance may refuse them outright - see `accepted_formats` in `module.toml`.
 fn is_image_mime(mime: &str, accept_undecodable: bool) -> bool {
     is_decodable_image_mime(mime)
         || (accept_undecodable && matches!(mime, "image/heic" | "image/heif" | "image/avif"))
 }
 
 /// What a photo file says about itself: its dimensions, and whatever EXIF
-/// carries. Every field is optional — a file may have no EXIF at all, or an
+/// carries. Every field is optional - a file may have no EXIF at all, or an
 /// unreadable one, and that is not an error.
 #[derive(Debug, Default)]
 struct PhotoMetadata {
@@ -491,7 +491,7 @@ fn rational_to_deg(deg: &exif::Rational, min: &exif::Rational, sec: &exif::Ratio
 /// `thumbnails` category to the core: derivatives occupy real space in the
 /// storage backend, and the only moment their weight is known for free is the
 /// moment they are written. Measuring them later means one `size()` round-trip
-/// per file against the backend — see `usage::backfill_derived_bytes`, which
+/// per file against the backend - see `usage::backfill_derived_bytes`, which
 /// exists solely to repair rows written before this was recorded.
 async fn generate_derivatives(
     storage: &dyn StorageBackend,

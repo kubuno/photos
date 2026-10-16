@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Photos · Albums — the Collections tab (CollectionsTabContent) from PhotosApp.kt. The "Albums" title and a
+  Photos · Albums - the Collections tab (CollectionsTabContent) from PhotosApp.kt. The "Albums" title and a
   2-column grid of AlbumCard (square cover + name + item count), with the floating bottom NavPill (Albums
   active). Covers are coloured placeholders on the device renderer. Light theme, logical px (~390 wide).
 -->

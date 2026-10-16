@@ -1,4 +1,4 @@
-//! Kubuno Photos for mobile — the app, portable (no OS, no window system).
+//! Kubuno Photos for mobile - the app, portable (no OS, no window system).
 //!
 //! The app is a set of `.kbview` screens (`views/`, edited in Visual Studio like every Kubuno view) rendered by the
 //! shared Kubuno mobile renderer (`kubuno-mobile-render`, core repository). The Android and iOS entry points

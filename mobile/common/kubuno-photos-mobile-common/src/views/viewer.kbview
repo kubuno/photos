@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Photos · Viewer — the full-screen viewer (PhotoViewer.kt). Black backdrop, a translucent top bar (back +
+  Photos · Viewer - the full-screen viewer (PhotoViewer.kt). Black backdrop, a translucent top bar (back +
   glance date/time + info) and a bottom action bar (Partager / Favori / Supprimer). The photo itself is the
   real preview on the web surface; on the device renderer the centre is a dark placeholder. Logical px.
 -->

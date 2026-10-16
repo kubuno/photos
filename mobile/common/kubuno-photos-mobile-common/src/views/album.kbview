@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Photos · Album — the full-screen album view (PhotosApp.kt → AlbumScreen, normal mode). A top bar (back +
+  Photos · Album - the full-screen album view (PhotosApp.kt → AlbumScreen, normal mode). A top bar (back +
   album name + overflow) over a date-sectioned square-tile grid reusing the gallery tiles. Light theme,
   logical px (~390 wide). Screen root is a Panel.
 -->

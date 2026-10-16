@@ -40,7 +40,7 @@ export default function PhotoEditor({ imageUrl, fileName, onSave, onCancel }: Pr
     return parts.join(' ') || 'none'
   })()
 
-  // Preload via a JS Image object — bypasses any CSS visibility / overflow-hidden
+  // Preload via a JS Image object - bypasses any CSS visibility / overflow-hidden
   // tricks that can silently block onLoad in some browser environments.
   useEffect(() => {
     if (!imageUrl) { setImgFailed(true); return }

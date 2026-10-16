@@ -5,22 +5,22 @@
 //! Until now a link had a single door: `/download`, which handed over the
 //! ORIGINAL file and doubled as the way to display it. That made "may look at
 //! it" and "may keep a copy of it" the same permission, so an instance could
-//! only ever allow both or neither — the switch an administrator actually wants
+//! only ever allow both or neither - the switch an administrator actually wants
 //! ("recipients may view, not download") had nowhere to attach.
 //!
 //! So the doors are separated:
 //!
-//! * `/preview` — the downscaled derivative. This is the VIEWING path, always
+//! * `/preview` - the downscaled derivative. This is the VIEWING path, always
 //!   open for a valid link. It falls back to the original when a preview was
 //!   never generated (an undecodable format), because refusing to show a shared
 //!   photo would be a worse answer than showing it at full size.
-//! * `/download` — the original, as an attachment, and the only one
+//! * `/download` - the original, as an attachment, and the only one
 //!   `share_allow_download` closes.
 //!
 //! ## What a link tells about the picture
 //!
 //! Capture metadata is the other half of the policy. EXIF carries the camera,
-//! the date, and — the one that matters — the GPS coordinates of where the
+//! the date, and - the one that matters - the GPS coordinates of where the
 //! photo was taken. A link handed to the outside world discloses none of it
 //! unless the administrator turns `share_expose_metadata` on.
 
@@ -126,7 +126,7 @@ pub async fn info(
             "height":        photo.height,
         });
 
-        // Capture metadata — camera, date, and above all the coordinates — is
+        // Capture metadata - camera, date, and above all the coordinates - is
         // added only when the instance allows a public link to disclose it.
         if inst.share_expose_metadata {
             if let Some(obj) = projection.as_object_mut() {
@@ -147,7 +147,7 @@ pub async fn info(
 }
 
 /// The viewing path: the downscaled preview, inline. Never gated by
-/// `share_allow_download` — a link that shows nothing is not a share.
+/// `share_allow_download` - a link that shows nothing is not a share.
 pub async fn preview(
     State(state): State<AppState>,
     Path(token): Path<String>,
@@ -182,7 +182,7 @@ pub async fn download(
 
     // Instance policy: a valid link may be view-only. Unlike the creation-time
     // switch (`allow_public_sharing`), this one applies to links ALREADY handed
-    // out — it is the answer to "we shared too much last month".
+    // out - it is the answer to "we shared too much last month".
     if !state.instance().share_allow_download {
         return Err(PhotosError::Forbidden);
     }

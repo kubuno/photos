@@ -12,22 +12,22 @@
 //! The core bills what a person can free themselves. That rule decides all three
 //! lines below.
 //!
-//! * `content` — live photos (`is_trashed = FALSE`). Billed: deleting a photo
+//! * `content` - live photos (`is_trashed = FALSE`). Billed: deleting a photo
 //!   releases it.
-//! * `trash` — the same originals after a soft delete. **Also billed, and kept as
+//! * `trash` - the same originals after a soft delete. **Also billed, and kept as
 //!   its own line rather than folded into `content`.** Billed because emptying the
 //!   bin is exactly the thing the person can do to free the space; separate
 //!   because when an account saturates, "half of it is in your bin" is the single
 //!   most useful thing the console can say. Only [`super::photo_service::delete_photo`]
 //!   actually releases the bytes, and only then does the figure fall.
-//! * `thumbnails` — the derived JPEGs (`photos/{owner}/thumbs/…` and
+//! * `thumbnails` - the derived JPEGs (`photos/{owner}/thumbs/…` and
 //!   `photos/{owner}/previews/…`). Real bytes, but the person has no handle on
-//!   them — no route deletes a thumbnail, and photos regenerates them anyway — so
+//!   them - no route deletes a thumbnail, and photos regenerates them anyway - so
 //!   they are not billed. Counted for both live and trashed photos: the files
 //!   survive a soft delete exactly like the original.
 //!
 //! Nothing else. No `versions` and no `retention`: photos keeps no history at all
-//! — a transform overwrites the original in place, so there is no prior state
+//! - a transform overwrites the original in place, so there is no prior state
 //! either the person or the module is holding on to. No `cache`, no `index` (EXIF
 //! lives in columns of the photos row, metadata rather than stored payload).
 //!
@@ -44,7 +44,7 @@
 //!   [`mark_dirty`]. A background task coalesces the marks and declares a few
 //!   seconds later, so importing four hundred photos produces one declaration
 //!   rather than four hundred, and the import never waits on the core. Photos
-//!   earns this — unlike a module holding only slow-moving machinery, its figures
+//!   earns this - unlike a module holding only slow-moving machinery, its figures
 //!   are the ones a person watches move while they upload.
 //! * **Full.** At startup and every six hours, every account is recounted and
 //!   declared as complete state. This is the repair path: it corrects whatever the
@@ -106,22 +106,22 @@ const _: () = assert!(BACKFILL_BATCH * BACKFILL_MAX_BATCHES as i64 <= 10_000);
 /// the secret's identity and answers 403 when the two disagree, so naming
 /// ourselves in the body can never impersonate another module. It is what makes
 /// the declaration work while the module spawner still hands out the master
-/// secret, and becomes dead weight — not a bypass — once it derives per-module
+/// secret, and becomes dead weight - not a bypass - once it derives per-module
 /// secrets. `/internal/modules/register` already works this way.
 const MODULE_ID: &str = "photos";
 
-/// Live originals — billed: the person frees them by deleting a photo.
+/// Live originals - billed: the person frees them by deleting a photo.
 const CAT_CONTENT: &str = "content";
-/// Soft-deleted originals — still on disk, still billed: the person frees them by
+/// Soft-deleted originals - still on disk, still billed: the person frees them by
 /// emptying the bin. Never merged into `content`.
 const CAT_TRASH: &str = "trash";
-/// Derived images — not billed: nothing exposes them for the person to delete.
+/// Derived images - not billed: nothing exposes them for the person to delete.
 const CAT_THUMBNAILS: &str = "thumbnails";
 
 /// Marks left by the write paths, drained by the reporter task.
 ///
 /// A global rather than a field on `AppState` because the write paths are free
-/// functions in `photo_service` reached with nothing but a `PgPool` — threading a
+/// functions in `photo_service` reached with nothing but a `PgPool` - threading a
 /// channel through all of them would touch every one of them to deliver a
 /// notification.
 static DIRTY: OnceLock<mpsc::UnboundedSender<Uuid>> = OnceLock::new();
@@ -168,9 +168,9 @@ struct Totals {
 /// written once:
 ///
 /// * **`FILTER (WHERE …)`** exists on PostgreSQL and SQLite but not MySQL, so
-///   each conditional aggregate is expressed as a `CASE` inside the aggregate —
+///   each conditional aggregate is expressed as a `CASE` inside the aggregate -
 ///   `SUM(CASE WHEN … THEN size_bytes ELSE 0 END)`, `COUNT(CASE WHEN … THEN 1
-///   END)` — which all three engines accept.
+///   END)` - which all three engines accept.
 /// * **The aggregate return type** (`numeric`/`DECIMAL`/`BIGINT UNSIGNED`) does
 ///   not decode into `i64` everywhere, so every aggregate is wrapped by
 ///   `sum_bigint` / `count_bigint`, which cast it and coalesce `NULL` to `0`.
@@ -208,7 +208,7 @@ fn row_to_totals(r: &TotalsRow) -> Totals {
 ///
 /// All three categories are emitted even at zero. "Photos holds nothing for this
 /// person" is a statement that has to be made explicitly, otherwise the last
-/// non-zero figure would stand forever — that is precisely what happens when
+/// non-zero figure would stand forever - that is precisely what happens when
 /// somebody empties their bin and nothing declares the `trash` line back to zero.
 fn entries_for(user_id: Uuid, t: &Totals) -> Vec<Entry> {
     vec![
@@ -236,7 +236,7 @@ fn entries_for(user_id: Uuid, t: &Totals) -> Vec<Entry> {
 /// Recounts the named accounts.
 ///
 /// Accounts with no photos at all are absent from the `GROUP BY`, so they are
-/// filled back in at zero — see [`entries_for`].
+/// filled back in at zero - see [`entries_for`].
 async fn totals_for(db: &DbPool, owners: &[Uuid]) -> Result<Vec<Entry>, sqlx::Error> {
     let backend = db.backend();
     // `= ANY($1)` binds an array, which only PostgreSQL has; it becomes an
@@ -275,7 +275,7 @@ async fn totals_all(db: &DbPool) -> Result<Vec<Entry>, sqlx::Error> {
         .flat_map(|r| entries_for(r.0, &row_to_totals(r)))
         .collect();
 
-    // Stable order so consecutive declarations chunk identically — a moving chunk
+    // Stable order so consecutive declarations chunk identically - a moving chunk
     // boundary would make partial declarations retire different accounts each time.
     entries.sort_by(|a, b| (a.user_id, a.category).cmp(&(b.user_id, b.category)));
     Ok(entries)
@@ -283,7 +283,7 @@ async fn totals_all(db: &DbPool) -> Result<Vec<Entry>, sqlx::Error> {
 
 /// Measures the derivatives of rows written before `derived_bytes` existed.
 ///
-/// Bounded by [`BACKFILL_BATCH`] × [`BACKFILL_MAX_BATCHES`] per call — see those
+/// Bounded by [`BACKFILL_BATCH`] × [`BACKFILL_MAX_BATCHES`] per call - see those
 /// constants for why the ceiling is not optional.
 ///
 /// A row whose derivatives turn out not to exist has its `has_thumbnail` /
@@ -380,7 +380,7 @@ fn page_count(n: usize) -> usize {
 ///
 /// A chunked declaration marked `full` would retire every entry outside whichever
 /// chunk happened to be sent last. Beyond the ceiling it is therefore sent as
-/// partial: correct, but unable to retire a line — a limitation the incremental
+/// partial: correct, but unable to retire a line - a limitation the incremental
 /// path already covers, since dropping to zero marks the owner dirty and zero is
 /// declared explicitly.
 fn claims_full(full: bool, n: usize) -> bool {
@@ -423,7 +423,7 @@ async fn send(
     }
 
     // The status alone does not say which of several validations refused the
-    // declaration, and this runs unattended — a log line reading "HTTP 422" costs
+    // declaration, and this runs unattended - a log line reading "HTTP 422" costs
     // an afternoon the next time the contract shifts.
     let status = resp.status();
     let detail = resp.text().await.unwrap_or_default();
@@ -477,7 +477,7 @@ async fn declare(http: &reqwest::Client, state: &AppState, entries: Vec<Entry>, 
                 // Incremental declarations are never retried here: the next flush
                 // declares the current state again, and retrying a stale total
                 // would be work done to publish an out-of-date number. A *full*
-                // declaration is different — it is the repair path, and its caller
+                // declaration is different - it is the repair path, and its caller
                 // reschedules it on this return value.
                 all_ok = false;
                 tracing::warn!(error = %e, entrées = chunk.len(), "Déclaration de consommation échouée");
@@ -500,7 +500,7 @@ async fn declare(http: &reqwest::Client, state: &AppState, entries: Vec<Entry>, 
 pub async fn run_reporter(state: AppState) {
     let (tx, mut rx) = mpsc::unbounded_channel::<Uuid>();
     if DIRTY.set(tx).is_err() {
-        tracing::error!("Rapporteur de consommation déjà démarré — second démarrage ignoré");
+        tracing::error!("Rapporteur de consommation déjà démarré - second démarrage ignoré");
         return;
     }
 
@@ -539,7 +539,7 @@ pub async fn run_reporter(state: AppState) {
                 }
             }
 
-            // Fires immediately at startup — the first thing the module does once
+            // Fires immediately at startup - the first thing the module does once
             // it is up is state its complete position. Retried with a growing
             // backoff until it lands, because the core is often not ready to
             // accept it on the first attempt.
@@ -619,7 +619,7 @@ mod tests {
         );
         // Photos holds its own bytes, so unlike office it never emits `delegated`.
         assert!(!e.iter().any(|x| x.category == "delegated"));
-        // Photos keeps no history of any kind — neither a purgeable one nor one it
+        // Photos keeps no history of any kind - neither a purgeable one nor one it
         // retains on its own policy.
         assert!(!e.iter().any(|x| x.category == "versions" || x.category == "retention"));
     }
@@ -634,12 +634,12 @@ mod tests {
         let trash = e.iter().find(|x| x.category == CAT_TRASH).expect("trash");
         assert_eq!(content.used_bytes, 100);
         assert_eq!(trash.used_bytes, 250);
-        // Both are billed, so the quota consequence is their sum — never one or
+        // Both are billed, so the quota consequence is their sum - never one or
         // the other.
         assert_eq!(content.used_bytes + trash.used_bytes, 350);
     }
 
-    /// Every account is declared on all three lines, at zero when empty — that is
+    /// Every account is declared on all three lines, at zero when empty - that is
     /// what retires a stale figure after somebody empties their bin.
     #[test]
     fn empty_account_still_declares_every_category_at_zero() {
@@ -682,7 +682,7 @@ mod tests {
     }
 
     /// Three lines per account means the ceiling is reached three times sooner
-    /// than a per-account count would suggest — worth pinning so nobody sizes the
+    /// than a per-account count would suggest - worth pinning so nobody sizes the
     /// chunking against accounts instead of entries.
     #[test]
     fn chunking_covers_every_entry_exactly_once() {
@@ -703,7 +703,7 @@ mod tests {
     }
 
 
-    /// Photos declares only its own tables — nothing it reads may belong to
+    /// Photos declares only its own tables - nothing it reads may belong to
     /// another module, or the same bytes would be counted twice.
     #[test]
     fn totals_query_reads_only_the_photos_schema() {

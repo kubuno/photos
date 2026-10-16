@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Photos · Onboarding — converted from OnboardingScreen.kt. A centred welcome card over the surfaceVariant
+  Photos · Onboarding - converted from OnboardingScreen.kt. A centred welcome card over the surfaceVariant
   backdrop: big accent avatar, the signed-in account, the auto-backup toggle and the start button. Shared
   vocabulary, light theme, logical px (~390 wide). Screen root is a Panel. The card stretches its children so
   long text wraps and the toggle row fills the width; avatar / name / button are re-centred in sub-stacks.

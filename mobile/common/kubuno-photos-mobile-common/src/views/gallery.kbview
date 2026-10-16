@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Photos · Gallery — the main Photos tab (PhotosTabContent + TopBar + NavPill) from PhotosApp.kt / PhotoGrid.kt.
+  Photos · Gallery - the main Photos tab (PhotosTabContent + TopBar + NavPill) from PhotosApp.kt / PhotoGrid.kt.
   A top bar (title + account avatar), a date-sectioned square-tile grid (DAY density = 4 columns, 2px gaps;
   real thumbnails on the web surface, coloured placeholders on the device renderer), and the floating bottom
   NavPill (Photos / Albums / Créer) with a detached round search button. Light theme, logical px (~390 wide).

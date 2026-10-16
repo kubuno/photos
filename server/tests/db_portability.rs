@@ -1,5 +1,5 @@
 //! Runs photos' own migrations and its own photo/album services against a real
-//! server of **each** engine, from a single compiled binary — the proof that the
+//! server of **each** engine, from a single compiled binary - the proof that the
 //! engine is a run-time choice, not a build-time one.
 //!
 //! * SQLite always runs (a temp file, no server).
@@ -137,7 +137,7 @@ async fn seed_photo(
 }
 
 /// Everything the handlers exercise: the read/update/trash/restore/delete path,
-/// the album path, a public-share round-trip and the usage aggregate — the one
+/// the album path, a public-share round-trip and the usage aggregate - the one
 /// whose `FILTER`/cast rewrite has to decode on every engine.
 async fn full_suite(pool: &DbPool) {
     let dir = tempfile::tempdir().expect("tempdir");

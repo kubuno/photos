@@ -55,7 +55,7 @@ async fn purge_old_photos(
 
 /// Background worker: hourly, purges photos trashed beyond the retention window.
 /// The first pass is deferred by one interval so a fresh deploy never purges
-/// immediately on boot. A retention of `0` means "never" — the pass is skipped.
+/// immediately on boot. A retention of `0` means "never" - the pass is skipped.
 pub async fn run_trash_cleaner(state: AppState) {
     loop {
         tokio::time::sleep(Duration::from_secs(3600)).await;

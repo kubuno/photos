@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Photos · Search — the full-screen search overlay (SearchScreen.kt). A search header (back + field), a row
+  Photos · Search - the full-screen search overlay (SearchScreen.kt). A search header (back + field), a row
   of category chips (Favoris / Vidéos / Corbeille; Favoris active) and a date-sectioned result grid reusing
   the gallery tiles. Light theme, logical px (~390 wide). Screen root is a Panel.
 -->

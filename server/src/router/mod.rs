@@ -16,7 +16,7 @@ pub fn build(state: AppState) -> Router {
     // The body limit is frozen when the router is built, but `max_upload_mb` is
     // an instance setting an administrator may raise at any moment. Sizing the
     // layer against the CEILING that setting can ever reach keeps the effective
-    // limit where it can be read and changed — in `upload_photo` — instead of
+    // limit where it can be read and changed - in `upload_photo` - instead of
     // silently capping it at whatever the config file said at boot.
     let body_limit = (crate::config::instance::MAX_UPLOAD_MB_CEILING as u64 * 1024 * 1024)
         .max(state.settings.photos.max_upload_bytes) as usize;

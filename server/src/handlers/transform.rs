@@ -78,7 +78,7 @@ pub async fn transform(
         let nb      = new_bytes;
         tokio::spawn(async move {
             // Derivatives are rewritten in place, so their weight changes with the
-            // original's — recorded in the same statement to keep `derived_bytes`
+            // original's - recorded in the same statement to keep `derived_bytes`
             // and the files it describes from drifting apart.
             let thumb_bytes = generate_resized_pub(
                 storage.as_ref(), &nb, &thumbnail_path(owner, pid), ts, quality,

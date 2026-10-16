@@ -4,14 +4,14 @@ import { useSignedUrl, type ImageSourceProps } from '@kubuno/sdk'
 
 /**
  * The "Photos" tab of the core image picker. Registered by this module, so the
- * tab only exists when photos is installed — the core never imports us.
+ * tab only exists when photos is installed - the core never imports us.
  *
  * The search box lives in the DIALOG header; we only receive its text.
  */
 
 const DATE_FMT = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 
-/** Groups photos by capture day, newest first — the library's own reading order. */
+/** Groups photos by capture day, newest first - the library's own reading order. */
 function groupByDay(photos: Photo[]): Array<{ day: string; label: string; photos: Photo[] }> {
   const buckets = new Map<string, { label: string; photos: Photo[] }>()
   for (const p of photos) {
@@ -67,7 +67,7 @@ export default function PhotosImageSource({ onPick, query }: ImageSourceProps) {
           <div className="flex flex-wrap gap-2">
             {g.photos.map(p => {
               // Keep the photo's own proportions on a fixed row height, the way
-              // a photo library lays out — never square-cropped.
+              // a photo library lays out - never square-cropped.
               const ratio = p.width && p.height ? p.width / p.height : 1
               return (
                 <button

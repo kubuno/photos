@@ -8,7 +8,7 @@ use crate::models::{AddPhotosToAlbumDto, Album, CreateAlbumDto, UpdateAlbumDto};
 /// The base `SELECT` for an album with its live photo count.
 ///
 /// `COUNT(*)` does not return the same SQL type on the three engines, so it is
-/// wrapped by `count_bigint` (a cast to a signed 64-bit integer) — otherwise
+/// wrapped by `count_bigint` (a cast to a signed 64-bit integer) - otherwise
 /// MySQL's `BIGINT UNSIGNED` would not decode into `Album::photo_count` (`i64`).
 fn album_select(backend: kubuno_db::Backend) -> String {
     format!(

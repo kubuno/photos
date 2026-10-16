@@ -13,7 +13,7 @@ import {
 import { photosApi, type Photo, type Album } from './api'
 import { Button, Input } from '@ui'
 
-// Cache de blob URLs pour les previews vidéo — évite de re-fetcher à chaque hover
+// Cache de blob URLs pour les previews vidéo - évite de re-fetcher à chaque hover
 const videoPreviewCache = new Map<string, string>()
 import { usePhotosStore } from './store'
 import PhotoEditor, { type TransformState } from './PhotoEditor'
@@ -73,7 +73,7 @@ function PhotoCard({
         const resp = await fetch(photosApi.downloadUrl(photo.id), {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Range': 'bytes=0-10485760', // 10 Mo — couvre le moov atom des MP4 faststart
+            'Range': 'bytes=0-10485760', // 10 Mo - couvre le moov atom des MP4 faststart
           },
         })
         if (!resp.ok && resp.status !== 206) throw new Error('fetch failed')
@@ -161,7 +161,7 @@ function PhotoCard({
         </div>
       )}
 
-      {/* Checkbox — always visible when selected, visible on hover otherwise */}
+      {/* Checkbox - always visible when selected, visible on hover otherwise */}
       <div className={`absolute top-2 left-2 transition-opacity ${selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
         <button
           onClick={e => { e.stopPropagation(); onSelect(photo.id, true) }}
@@ -172,7 +172,7 @@ function PhotoCard({
         </button>
       </div>
 
-      {/* Action buttons — visible on hover, hidden when already selected */}
+      {/* Action buttons - visible on hover, hidden when already selected */}
       {!selected && (
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 no-print">
           <button
@@ -199,7 +199,7 @@ function PhotoCard({
   )
 }
 
-// ── PhotosLightbox — viewer avec éditeur intégré ──────────────────────────────
+// ── PhotosLightbox - viewer avec éditeur intégré ──────────────────────────────
 function PhotosLightbox({
   photo, photos, onClose, onNavigate,
 }: {

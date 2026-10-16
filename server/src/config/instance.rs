@@ -2,7 +2,7 @@
 //! the console.
 //!
 //! Declared by `module.toml`'s `[[settings]]`, stored in `core.settings`, and read
-//! back here through `/internal/modules/photos/settings` — a module owns its own
+//! back here through `/internal/modules/photos/settings` - a module owns its own
 //! schema and cannot read the core's tables, and a background worker has no user
 //! token for the public config route. The module is named in the URL so the read
 //! works whether the instance shares one master secret or a derived one per
@@ -36,10 +36,10 @@ pub struct InstanceConfig {
     /// derivatives, so an instance that wants a consistent gallery refuses them.
     pub accept_undecodable_formats: bool,
     /// Whether a public link may hand over the ORIGINAL file. Off, the link
-    /// still shows the picture — it serves the downscaled preview instead.
+    /// still shows the picture - it serves the downscaled preview instead.
     pub share_allow_download: bool,
     /// Whether a public link discloses capture metadata: date taken, camera and
-    /// — the sensitive one — GPS coordinates. Off by default: a link shared with
+    /// - the sensitive one - GPS coordinates. Off by default: a link shared with
     /// the outside must not leak where somebody lives.
     pub share_expose_metadata: bool,
 }

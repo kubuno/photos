@@ -2,7 +2,7 @@
 id           = "photos"
 display_name = "Photos"
 version      = "0.1.9"
-description  = "Galerie photo — import, organisation en albums, partage, timeline."
+description  = "Galerie photo - import, organisation en albums, partage, timeline."
 author       = "Kubuno Contributors"
 license      = "AGPL-3.0"
 homepage_url = "https://github.com/kubuno/kubuno"
@@ -229,7 +229,7 @@ group   = "sharing"
 type    = "bool"
 default = false
 label   = "Divulguer les métadonnées de prise de vue"
-description = "Date de prise de vue, appareil et coordonnées GPS. Désactivé, un lien public n'expose aucune de ces informations — le lieu où la photo a été prise reste privé."
+description = "Date de prise de vue, appareil et coordonnées GPS. Désactivé, un lien public n'expose aucune de ces informations - le lieu où la photo a été prise reste privé."
 
 [events]
 subscribed = [

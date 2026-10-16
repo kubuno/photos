@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Photos · Create — the Create tab (CreateTabContent) from PhotosApp.kt. The "Créer" title and three
+  Photos · Create - the Create tab (CreateTabContent) from PhotosApp.kt. The "Créer" title and three
   CreateAction rows (accent-tinted round icon + title + subtitle), with the floating bottom NavPill
   (Créer active). Light theme, logical px (~390 wide). Screen root is a Panel.
 -->
