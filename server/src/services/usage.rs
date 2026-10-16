@@ -26,8 +26,8 @@
 //!   they are not billed. Counted for both live and trashed photos: the files
 //!   survive a soft delete exactly like the original.
 //!
-//! Nothing else. No `versions` and no `retention`: photos keeps no history at all
-//! - a transform overwrites the original in place, so there is no prior state
+//! Nothing else. No `versions` and no `retention`: photos keeps no history at all -
+//! a transform overwrites the original in place, so there is no prior state
 //! either the person or the module is holding on to. No `cache`, no `index` (EXIF
 //! lives in columns of the photos row, metadata rather than stored payload).
 //!
