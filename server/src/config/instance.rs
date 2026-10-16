@@ -38,8 +38,8 @@ pub struct InstanceConfig {
     /// Whether a public link may hand over the ORIGINAL file. Off, the link
     /// still shows the picture - it serves the downscaled preview instead.
     pub share_allow_download: bool,
-    /// Whether a public link discloses capture metadata: date taken, camera and
-    /// - the sensitive one - GPS coordinates. Off by default: a link shared with
+    /// Whether a public link discloses capture metadata: date taken, camera and -
+    /// the sensitive one - GPS coordinates. Off by default: a link shared with
     /// the outside must not leak where somebody lives.
     pub share_expose_metadata: bool,
 }

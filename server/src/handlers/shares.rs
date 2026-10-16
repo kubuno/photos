@@ -56,8 +56,8 @@ pub async fn create(
     rand::thread_rng().fill_bytes(&mut token_bytes);
     let token = URL_SAFE_NO_PAD.encode(token_bytes);
 
-    // Apply the expiry ceiling. With a ceiling set, a link created with no expiry
-    // - or asking for a longer one - is clamped to the ceiling rather than left
+    // Apply the expiry ceiling. With a ceiling set, a link created with no expiry -
+    // or asking for a longer one - is clamped to the ceiling rather than left
     // permanent.
     let now = chrono::Utc::now();
     let requested = dto.expires_in_days.filter(|d| *d > 0);
